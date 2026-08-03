@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.DS_Store
+.env
+.env.*
+!.env.example
+backend/storage/projects
+backend/storage/executions
+backend/storage/cache
+frontend/dist
+*.log
