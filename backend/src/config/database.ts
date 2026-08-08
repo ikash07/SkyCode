@@ -1,31 +1,41 @@
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import { env } from './env.js';
-
-let inMemoryServer: MongoMemoryServer | null = null;
 
 export async function connectDatabase(): Promise<void> {
   mongoose.set('strictQuery', true);
 
-  try {
-    await mongoose.connect(env.MONGODB_URI);
-    return;
-  } catch (error) {
-    if (env.MONGODB_URI.includes('127.0.0.1') || env.MONGODB_URI.includes('localhost')) {
-      inMemoryServer = await MongoMemoryServer.create({ instance: { dbName: 'online_ide' } });
-      await mongoose.connect(inMemoryServer.getUri());
-      process.stdout.write('MongoDB not available locally, using in-memory MongoDB for development.\n');
-      return;
-    }
+  mongoose.connection.on('connected', () => {
+    process.stdout.write(`✅ MongoDB connected successfully to: ${env.MONGODB_URI.replace(/\/\/([^:]+):([^@]+)@/, '//$1:****@')}\n`);
+  });
 
-    throw error;
+  mongoose.connection.on('error', (err) => {
+    process.stderr.write(`❌ MongoDB connection error: ${err.message}\n`);
+  });
+
+  mongoose.connection.on('disconnected', () => {
+    process.stdout.write('⚠️  MongoDB disconnected\n');
+  });
+
+  try {
+    await mongoose.connect(env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+    });
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    process.stderr.write(
+      `\n❌ Failed to connect to MongoDB!\n` +
+      `   URI: ${env.MONGODB_URI.replace(/\/\/([^:]+):([^@]+)@/, '//$1:****@')}\n` +
+      `   Error: ${err.message}\n\n` +
+      `   💡 To fix this:\n` +
+      `      1. Set MONGODB_URI in backend/.env to a valid MongoDB connection string\n` +
+      `      2. For free cloud hosting, use MongoDB Atlas: https://www.mongodb.com/cloud/atlas\n` +
+      `      3. Example: mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/online_ide\n\n`
+    );
+    throw err;
   }
 }
 
 export async function disconnectDatabase(): Promise<void> {
   await mongoose.disconnect();
-  if (inMemoryServer) {
-    await inMemoryServer.stop();
-    inMemoryServer = null;
-  }
 }
