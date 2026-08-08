@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { editorLanguage } from '../../utils/language';
@@ -17,8 +18,29 @@ const snippets = [
 
 export function CodeEditor({ filePath, value, onChange, fontSize, theme }: CodeEditorProps) {
   const language = filePath ? editorLanguage(filePath) : 'plaintext';
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const isInternalChange = useRef(false);
 
-  const handleMount: OnMount = (_editor, monacoInstance) => {
+  // Sync external value changes (e.g. file switch) into editor without cursor reset
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const model = editor.getModel();
+    if (!model) return;
+
+    const currentValue = model.getValue();
+    if (currentValue !== value && !isInternalChange.current) {
+      // External value change (file loaded/switched) — update editor
+      editor.setValue(value);
+    }
+    isInternalChange.current = false;
+  }, [value]);
+
+  const handleMount: OnMount = (editor, monacoInstance) => {
+    editorRef.current = editor;
+
     monacoInstance.editor.defineTheme('online-dark', {
       base: 'vs-dark',
       inherit: true,
@@ -41,6 +63,8 @@ export function CodeEditor({ filePath, value, onChange, fontSize, theme }: CodeE
       }
     });
 
+    monacoInstance.editor.setTheme(theme === 'dark' ? 'online-dark' : 'online-light');
+
     monacoInstance.languages.registerCompletionItemProvider('python', {
       provideCompletionItems: (model, position) => {
         const range = {
@@ -59,18 +83,27 @@ export function CodeEditor({ filePath, value, onChange, fontSize, theme }: CodeE
         };
       }
     });
+
+    // Listen for user edits — emit onChange without triggering external value sync
+    editor.onDidChangeModelContent(() => {
+      const currentValue = editor.getModel()?.getValue() ?? '';
+      isInternalChange.current = true;
+      onChangeRef.current(currentValue);
+    });
   };
+
+  // Update editor options when fontSize changes
+  useEffect(() => {
+    editorRef.current?.updateOptions({ fontSize });
+  }, [fontSize]);
 
   return (
     <Editor
+      key={filePath}
       height="100%"
       theme={theme === 'dark' ? 'online-dark' : 'online-light'}
       language={language}
-      value={value}
-      onChange={(nextValue) => onChange(nextValue ?? '')}
-      beforeMount={() => {
-        monaco.editor.setTheme(theme === 'dark' ? 'online-dark' : 'online-light');
-      }}
+      defaultValue={value}
       onMount={handleMount}
       options={{
         fontSize,
@@ -87,3 +120,4 @@ export function CodeEditor({ filePath, value, onChange, fontSize, theme }: CodeE
     />
   );
 }
+

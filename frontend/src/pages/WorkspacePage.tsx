@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
 import { Sidebar, type SidebarView } from '../components/layout/Sidebar';
@@ -49,6 +49,14 @@ export function WorkspacePage() {
   const [pathInput, setPathInput] = useState('');
   const [pathDialogBusy, setPathDialogBusy] = useState(false);
 
+  // Refs to avoid stale closures in autosave timer
+  const activeFileRef = useRef(activeFile);
+  activeFileRef.current = activeFile;
+  const openFilesRef = useRef(openFiles);
+  openFilesRef.current = openFiles;
+  const projectRef = useRef(project);
+  projectRef.current = project;
+
   const activeContent = useMemo(() => openFiles.find((file) => file.path === activeFile)?.content ?? '', [activeFile, openFiles]);
 
   const loadWorkspace = async () => {
@@ -67,6 +75,56 @@ export function WorkspacePage() {
     void loadWorkspace();
   }, [projectId]);
 
+  const updateOpenFile = (filePath: string, content: string, dirty = true) => {
+    setOpenFiles((current) => current.map((file) => (file.path === filePath ? { ...file, content, dirty } : file)));
+  };
+
+  // Stable save function that reads from refs (never stale)
+  const saveFile = useCallback(async (filePath: string, skipReload = false) => {
+    if (!projectId || !filePath) return;
+    const currentFile = openFilesRef.current.find((file) => file.path === filePath);
+    if (!currentFile || !currentFile.dirty) return;
+
+    // Capture the content we're about to save
+    const contentToSave = currentFile.content;
+    await saveFileRequest(projectId, currentFile.path, contentToSave);
+
+    // Only mark as clean if the content hasn't changed while saving
+    // (user may have typed more while the request was in flight)
+    setOpenFiles((current) =>
+      current.map((file) => {
+        if (file.path !== filePath) return file;
+        // If content is still what we saved, mark clean
+        if (file.content === contentToSave) {
+          return { ...file, dirty: false };
+        }
+        // Content changed during save — keep dirty so next autosave picks it up
+        return file;
+      })
+    );
+
+    if (!skipReload) {
+      await loadWorkspace();
+    }
+  }, [projectId]);
+
+  const saveActiveFile = useCallback(async () => {
+    const currentActive = activeFileRef.current;
+    if (currentActive) {
+      await saveFile(currentActive, false);
+    }
+  }, [saveFile]);
+
+  // Autosave: uses refs to get current values, skips workspace reload to prevent content reset
+  const triggerAutosave = useCallback((filePath: string) => {
+    if (autosaveTimer.current) {
+      window.clearTimeout(autosaveTimer.current);
+    }
+    autosaveTimer.current = window.setTimeout(() => {
+      void saveFile(filePath, true); // skipReload=true to prevent resetting editor
+    }, 800);
+  }, [saveFile]);
+
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
@@ -81,11 +139,7 @@ export function WorkspacePage() {
 
     window.addEventListener('keydown', handleShortcut);
     return () => window.removeEventListener('keydown', handleShortcut);
-  }, [activeFile, openFiles, project]);
-
-  const updateOpenFile = (filePath: string, content: string, dirty = true) => {
-    setOpenFiles((current) => current.map((file) => (file.path === filePath ? { ...file, content, dirty } : file)));
-  };
+  }, [saveActiveFile, project]);
 
   const openFile = async (filePath: string) => {
     if (!projectId) return;
@@ -100,24 +154,14 @@ export function WorkspacePage() {
     setActiveFile(file.path);
   };
 
-  const saveActiveFile = async () => {
-    if (!projectId || !activeFile) return;
-    const currentFile = openFiles.find((file) => file.path === activeFile);
-    if (!currentFile) return;
-
-    const saved = await saveFileRequest(projectId, currentFile.path, currentFile.content);
-    updateOpenFile(saved.path, saved.content, false);
-    await loadWorkspace();
-  };
-
   const runActiveFile = async () => {
     if (!projectId) return;
-    const entryFile = activeFile || guessEntryFile(tree, project?.language ?? 'python');
+    const entryFile = activeFileRef.current || guessEntryFile(tree, projectRef.current?.language ?? 'python');
     if (!entryFile) return;
 
     setBusy(true);
     try {
-      const response = await runProjectRequest(projectId, entryFile, project?.language || detectLanguageFromPath(entryFile));
+      const response = await runProjectRequest(projectId, entryFile, projectRef.current?.language || detectLanguageFromPath(entryFile));
       setLatestExecution(response.execution);
       setBottomTab('terminal');
       await loadWorkspace();
@@ -168,8 +212,8 @@ export function WorkspacePage() {
         if (!value || value === path) return;
         await renameItemRequest(projectId, path, value);
         setOpenFiles((current) => current.map((file) => (file.path === path || file.path.startsWith(`${path}/`) ? { ...file, path: file.path.replace(path, value) } : file)));
-        if (activeFile && (activeFile === path || activeFile.startsWith(`${path}/`))) {
-          setActiveFile(activeFile.replace(path, value));
+        if (activeFileRef.current && (activeFileRef.current === path || activeFileRef.current.startsWith(`${path}/`))) {
+          setActiveFile(activeFileRef.current.replace(path, value));
         }
         await loadWorkspace();
       }
@@ -182,7 +226,7 @@ export function WorkspacePage() {
     if (!window.confirm(`Delete ${path}?`)) return;
     await deleteItemRequest(projectId, path);
     setOpenFiles((current) => current.filter((file) => file.path !== path && !file.path.startsWith(`${path}/`)));
-    if (activeFile && (activeFile === path || activeFile.startsWith(`${path}/`))) setActiveFile(null);
+    if (activeFileRef.current && (activeFileRef.current === path || activeFileRef.current.startsWith(`${path}/`))) setActiveFile(null);
     await loadWorkspace();
   };
 
@@ -261,11 +305,8 @@ export function WorkspacePage() {
                 onChange={(nextContent) => {
                   if (!activeFile) return;
                   updateOpenFile(activeFile, nextContent, true);
-                  if (project.settings.autoSave) {
-                    if (autosaveTimer.current) {
-                      window.clearTimeout(autosaveTimer.current);
-                    }
-                    autosaveTimer.current = window.setTimeout(() => void saveActiveFile(), 800);
+                  if (projectRef.current?.settings.autoSave) {
+                    triggerAutosave(activeFile);
                   }
                 }}
                 fontSize={project.settings.fontSize}
@@ -332,3 +373,4 @@ export function WorkspacePage() {
     </AppShell>
   );
 }
+
