@@ -10,19 +10,3 @@ backend/storage/executions
 backend/storage/cache
 frontend/dist
 *.log
-
-# Security - never commit these
-*.pem
-*.key
-*.crt
-*.p12
-.ssh/
-
-# OS files
-Thumbs.db
-Desktop.ini
-
-# Compiled binaries from code execution
-*.exe
-*.out
-*.class

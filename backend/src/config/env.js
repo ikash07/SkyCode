@@ -7,7 +7,6 @@ dotenv.config({ path: path.resolve(process.cwd(), 'backend', '.env') });
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
-  NODE_ENV: z.string().default('development'),
   MONGODB_URI: z.string().default('mongodb://127.0.0.1:27017/online_ide'),
   JWT_SECRET: z.string().default('dev-secret-key-change-me-to-a-long-random-string-123456'),
   JWT_EXPIRES_IN: z.string().default('7d'),
