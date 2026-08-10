@@ -23,9 +23,9 @@ async function bootstrap() {
   setupTerminalSocket(server);
 
   // Always start server listening immediately on PORT so backend is never offline
-  server.listen(env.PORT, () => {
-    process.stdout.write(`✅ Backend server listening on http://localhost:${env.PORT}\n`);
-    process.stdout.write(`⚡ WebSocket terminal active on ws://localhost:${env.PORT}/ws/terminal\n`);
+  server.listen(env.PORT, '0.0.0.0', () => {
+    process.stdout.write(`✅ Backend server listening on http://0.0.0.0:${env.PORT} (${process.env.NODE_ENV || 'development'})\n`);
+    process.stdout.write(`⚡ WebSocket terminal active on ws://0.0.0.0:${env.PORT}/ws/terminal\n`);
   });
 
   // Connect to MongoDB in background; don't crash process if offline or connecting

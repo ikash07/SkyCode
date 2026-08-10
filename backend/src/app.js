@@ -8,12 +8,22 @@ import { projectRoutes } from './routes/projectRoutes.js';
 import { executionRoutes } from './routes/executionRoutes.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 
+import { env } from './config/env.js';
+
 export function createApp() {
   const app = express();
 
+  // Parse allowed origins from CLIENT_ORIGIN (comma-separated)
+  const allowedOrigins = env.CLIENT_ORIGIN.split(',').map(o => o.trim()).filter(Boolean);
+
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(cors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (server-to-server, curl, mobile apps)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
     credentials: true
   }));
   app.use(express.json({ limit: '10mb' }));

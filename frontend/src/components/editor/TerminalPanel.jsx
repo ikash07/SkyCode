@@ -68,9 +68,13 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       onLiveStreamChange({ stdout: '', stderr: '' });
     }
 
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = window.location.hostname || 'localhost';
-    const wsUrl = `${wsProtocol}//${wsHost}:4000/ws/terminal`;
+    let wsUrl = import.meta.env.VITE_WS_URL;
+    if (!wsUrl) {
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+      const parsed = new URL(apiBase, window.location.href);
+      const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${wsProtocol}//${parsed.host}/ws/terminal`;
+    }
 
     try {
       const ws = new WebSocket(wsUrl);
