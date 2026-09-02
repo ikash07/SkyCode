@@ -13,7 +13,7 @@ function setAuthCookie(res, token) {
   const isProduction = process.env.NODE_ENV === 'production';
   res.cookie('token', token, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: isProduction ? 'none' : 'lax',
     secure: isProduction,
     maxAge: 1000 * 60 * 60 * 24 * 7
   });
