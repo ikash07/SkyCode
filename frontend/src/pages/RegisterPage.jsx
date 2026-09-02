@@ -32,9 +32,9 @@ export function RegisterPage() {
         <h1 className="mt-3 text-3xl font-semibold">Join the workspace</h1>
         <p className="mt-2 text-sm text-[var(--color-muted)]">Create and run projects in isolated Docker containers.</p>
         <div className="mt-6 space-y-4">
-          <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} type="text" placeholder="Display name" className="w-full rounded-2xl border border-[var(--color-border)] bg-black/10 px-4 py-3 outline-none" />
-          <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="Email" className="w-full rounded-2xl border border-[var(--color-border)] bg-black/10 px-4 py-3 outline-none" />
-          <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="Password" className="w-full rounded-2xl border border-[var(--color-border)] bg-black/10 px-4 py-3 outline-none" />
+          <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} type="text" placeholder="Display name" className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 outline-none" />
+          <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="Email" className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 outline-none" />
+          <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="Password" className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 outline-none" />
           {error ? <div className="rounded-2xl border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/10 px-4 py-3 text-sm text-[var(--color-danger)]">{error}</div> : null}
           <button disabled={busy} className="w-full rounded-2xl bg-[var(--color-accent)] px-4 py-3 font-medium text-white disabled:opacity-60">{busy ? 'Creating account...' : 'Create account'}</button>
         </div>

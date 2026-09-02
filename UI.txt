@@ -1,0 +1,193 @@
+================================================================================
+                         SKYCODE — PROJECT STRUCTURE & UI DESIGN
+================================================================================
+
+
+================================================================================
+ 1. PROJECT CODE STRUCTURE
+================================================================================
+
+SkyCode/
+├── package.json                    # Root monorepo (npm workspaces)
+├── docker-compose.yml              # Docker orchestration
+├── .env                            # Environment variables
+├── scripts/
+│   └── dev.mjs                     # Dev server launcher
+│
+├── frontend/                       # React + Vite + TailwindCSS
+│   ├── index.html                  # Entry HTML (title: SkyCode)
+│   ├── tailwind.config.js          # Tailwind config (dark mode via data-theme)
+│   ├── vite.config.js              # Vite bundler config
+│   └── src/
+│       ├── main.jsx                # React entry point
+│       ├── App.jsx                 # Router + auth loading screen
+│       ├── index.css               # Global design system (CSS variables, themes)
+│       │
+│       ├── api/                    # HTTP client layer
+│       │   ├── client.js           # Axios instance
+│       │   ├── auth.js             # Login/register/me API
+│       │   └── projects.js         # CRUD, files, run, search API
+│       │
+│       ├── context/
+│       │   └── AuthContext.jsx     # Auth state provider
+│       │
+│       ├── hooks/
+│       │   └── useThemeMode.js     # Dark/light toggle (data-theme on <html>)
+│       │
+│       ├── utils/
+│       │   └── language.js         # Language detection + entry file guesser
+│       │
+│       ├── pages/
+│       │   ├── LoginPage.jsx       # Sign in form
+│       │   ├── RegisterPage.jsx    # Create account form
+│       │   ├── DashboardPage.jsx   # Project list + create project
+│       │   └── WorkspacePage.jsx   # Main IDE workspace (editor + terminal)
+│       │
+│       └── components/
+│           ├── layout/
+│           │   ├── AppShell.jsx    # Top header bar (SkyCode logo + theme toggle)
+│           │   ├── Sidebar.jsx     # Left icon sidebar (explorer, search, settings, run)
+│           │   └── RequireAuth.jsx # Auth route guard
+│           │
+│           └── editor/
+│               ├── Explorer.jsx     # File tree panel (create, rename, delete, upload)
+│               ├── SearchPanel.jsx  # Search files/content panel
+│               ├── SettingsPanel.jsx # Auto-save + font size settings
+│               ├── FileTabs.jsx     # Open file tabs bar
+│               ├── CodeEditor.jsx   # Monaco editor wrapper
+│               ├── BottomPanel.jsx  # Terminal/Output/Problems tab container
+│               └── TerminalPanel.jsx # Live interactive terminal (WebSocket)
+│
+├── backend/                        # Express.js + MongoDB + Docker
+│   └── src/
+│       ├── app.js                  # Express app setup
+│       ├── index.js                # Server entry + WebSocket setup
+│       │
+│       ├── config/
+│       │   └── db.js               # MongoDB connection
+│       │
+│       ├── middleware/
+│       │   └── auth.js             # JWT authentication middleware
+│       │
+│       ├── models/
+│       │   ├── User.js             # User schema (name, email, password)
+│       │   ├── Project.js          # Project schema (name, language, settings)
+│       │   ├── File.js             # File schema (path, content, projectId)
+│       │   └── Execution.js        # Execution schema (stdout, stderr, status)
+│       │
+│       ├── routes/
+│       │   ├── authRoutes.js       # POST /register, /login, GET /me
+│       │   ├── projectRoutes.js    # CRUD projects, files, folders, search
+│       │   └── executionRoutes.js  # GET execution history
+│       │
+│       ├── controllers/
+│       │   ├── authController.js
+│       │   ├── projectController.js
+│       │   └── executionController.js
+│       │
+│       ├── services/
+│       │   ├── authService.js       # JWT + bcrypt auth logic
+│       │   ├── projectService.js    # File CRUD + tree building
+│       │   ├── executionService.js   # Execution history
+│       │   ├── dockerRunner.js       # Docker container execution
+│       │   ├── interactiveRunner.js  # Streaming Docker execution
+│       │   └── terminalSocket.js     # WebSocket terminal handler
+│       │
+│       └── utils/
+│
+└── docker/
+    ├── README.md
+    └── runtime/                     # Docker runtime images
+
+
+================================================================================
+ 2. CURRENT DESIGN SYSTEM (from index.css)
+================================================================================
+
+DARK MODE (default):
+  Canvas:       #0a0e1a        (deep midnight navy)
+  Panel:        rgba(14,20,36,0.92) + backdrop-blur:16px (frosted glass)
+  Border:       rgba(148,163,184,0.12)
+  Text:         #e2eaf5
+  Muted:        #8496ad
+  Accent:       #5b9aff
+  Accent Soft:  rgba(91,154,255,0.14)
+  Danger:       #ff6b7a
+  Success:      #34d399
+
+LIGHT MODE:
+  Canvas:       #f4f5f7        (warm off-white)
+  Panel:        rgba(255,255,255,0.98)
+  Border:       rgba(0,0,0,0.10)
+  Text:         #1a1d26
+  Muted:        #5e6678
+  Accent:       #3b6ef6
+  Accent Soft:  rgba(59,110,246,0.10)
+  Danger:       #dc3545
+  Success:      #0f9d72
+
+BRANDING:
+  Logo Gradient:  #5b9aff → #7c3aed (blue to purple)
+  Logo Icon:      Rocket inside gradient rounded badge
+  Text Animation: Shimmer gradient shift (4s loop)
+  Badge Glow:     Breathing box-shadow pulse (3s loop)
+  Font:           Inter (UI), JetBrains Mono / monospace (code)
+
+
+================================================================================
+ 3. NEXT-LEVEL UI DESIGN PROMPT
+================================================================================
+
+Design a premium online IDE called "SkyCode" with dark and light mode.
+
+Layout: Header bar on top, 64px icon sidebar on left, 300px file explorer
+panel, main code editor area with resizable terminal at bottom.
+
+Dark mode: Deep navy canvas #0a0e1a, frosted glass panels with 16px blur,
+soft blue accent #5b9aff, light text #e2eaf5, muted text #8496ad, subtle
+blue-purple ambient glow in background corners.
+
+Light mode: Warm off-white canvas #f4f5f7, clean near-solid white panels,
+blue accent #3b6ef6, dark text #1a1d26, muted text #5e6678, ultra-soft
+shadows with 0.06 opacity. Editor area is solid white #ffffff to #fafbfc.
+
+Header: Rocket icon inside a blue-to-purple (#5b9aff → #7c3aed) gradient
+rounded badge with breathing glow. "SkyCode" text with animated shimmer
+gradient. "ONLINE IDE" as small uppercase subtitle. Theme toggle button
+(Sun/Moon icon) on the right side.
+
+Sidebar (64px): Vertical icon bar with rounded-3xl glass panel. Icons for
+file explorer, search, settings. Bottom has a Play button with blue accent
+color and glowing shadow. Active icon gets soft accent background tint.
+
+File Explorer (300px): "EXPLORER" label + "Project files" heading. Action
+buttons for new file, new folder, upload. File tree with chevron
+expand/collapse. Hover reveals edit/delete icons. Selected file gets accent
+highlight. Tree indent lines using subtle left border.
+
+Editor Area: Top bar shows project name (uppercase tracking), language
+badge pill (e.g. PYTHON), and Run button. File tabs with rounded top
+corners, active tab has accent-soft background, close X appears on hover.
+Code area uses Monaco-style syntax highlighting. Empty state shows centered
+"Open a file to start editing" message.
+
+Terminal (260px, resizable): Tab bar with Terminal, Output, Problems tabs.
+Terminal header has terminal icon + "TERMINAL" label + status badge (amber
+pulsing dot when running) + Run/Stop/Clear buttons. Terminal body is dark
+monospace (#0d1117 background), green text for user input, blue for
+commands, red for errors. Thin draggable resize handle that turns accent
+blue on hover.
+
+3 Screens to design:
+  1. Workspace — the full IDE layout described above
+  2. Dashboard — welcome greeting, create project form (name, description,
+     language dropdown), project cards grid with hover lift effect
+  3. Login/Register — centered glass card on ambient gradient background,
+     SkyCode logo, clean rounded input fields, full-width accent button
+
+Style: Glassmorphism with backdrop-blur, rounded corners (16px-24px), Inter
+font for UI, smooth hover scale animations (1.01x), micro-interactions on
+every interactive element. Premium feel like Linear × Vercel × Replit.
+
+Do NOT use: pure black #000000, cold blue-grey light backgrounds, flat
+basic inputs, harsh borders, generic fonts, or placeholder images.

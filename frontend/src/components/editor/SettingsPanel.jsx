@@ -1,6 +1,6 @@
 export function SettingsPanel({ project, onAutoSaveChange, onFontSizeChange }) {
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-[var(--color-border)] bg-black/10 p-3">
+    <div className="flex h-full flex-col rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
       <div className="text-xs uppercase tracking-[0.28em] text-[var(--color-muted)]">Settings</div>
       <div className="mt-3 space-y-4 text-sm">
         <label className="flex items-center justify-between rounded-xl border border-[var(--color-border)] px-3 py-2">

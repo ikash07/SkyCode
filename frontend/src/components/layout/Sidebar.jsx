@@ -1,35 +1,50 @@
-import { FileText, Search, Settings, FolderOpen, Play } from 'lucide-react';
+import { LayoutGrid, FolderOpen, Search, Settings, Play } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const items = [
-  { view: 'explorer', icon: <FolderOpen size={18} />, label: 'Explorer' },
-  { view: 'search', icon: <Search size={18} />, label: 'Search' },
-  { view: 'settings', icon: <Settings size={18} />, label: 'Settings' }
+  { view: 'dashboard', icon: <LayoutGrid size={20} />, label: 'Dashboard' },
+  { view: 'explorer', icon: <FolderOpen size={20} />, label: 'Explorer' },
+  { view: 'search', icon: <Search size={20} />, label: 'Search' },
+  { view: 'settings', icon: <Settings size={20} />, label: 'Settings' }
 ];
 
 export function Sidebar({ active, onChange, onRun }) {
+  const navigate = useNavigate();
+
+  const handleNav = (view) => {
+    if (view === 'dashboard') {
+      navigate('/');
+    } else {
+      onChange(view);
+    }
+  };
+
   return (
-    <aside className="glass-panel shell-shadow flex h-full w-[64px] flex-col items-center rounded-3xl py-3">
-      <div className="mb-3 rounded-2xl bg-[var(--color-accent-soft)] p-2 text-[var(--color-accent)]">
-        <FileText size={18} />
-      </div>
-      <nav className="flex flex-1 flex-col gap-2">
+    <aside className="glass-panel shell-shadow flex h-auto w-full md:h-full md:w-[60px] flex-row md:flex-col items-center justify-between rounded-2xl md:rounded-3xl p-2 md:py-3 border border-[var(--color-border)] shrink-0">
+      <nav className="flex flex-row md:flex-col gap-1.5 md:gap-2">
         {items.map((item) => (
           <button
             key={item.view}
             title={item.label}
-            onClick={() => onChange(item.view)}
-            className={`rounded-2xl p-3 transition ${active === item.view ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)]' : 'text-[var(--color-muted)] hover:bg-white/5 hover:text-[var(--color-text)]'}`}
+            onClick={() => handleNav(item.view)}
+            className={`rounded-xl md:rounded-2xl p-2.5 transition ${
+              active === item.view
+                ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
+                : 'text-[var(--color-muted)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--color-text)]'
+            }`}
           >
             {item.icon}
           </button>
         ))}
       </nav>
+
+      {/* Floating Gradient Circular Play Button */}
       <button
-        title="Run"
+        title="Run Execution"
         onClick={onRun}
-        className="mb-2 rounded-2xl bg-[var(--color-accent)] p-3 text-white shadow-lg shadow-blue-500/20 transition hover:scale-105"
+        className="flex h-10 w-10 md:h-11 md:w-11 items-center justify-center rounded-full bg-gradient-to-br from-[#4f8cff] to-[#7c3aed] text-white shadow-lg shadow-blue-500/30 transition hover:scale-110 active:scale-95 shrink-0"
       >
-        <Play size={18} />
+        <Play size={18} className="fill-white ml-0.5" />
       </button>
     </aside>
   );

@@ -15,29 +15,45 @@ export const BottomPanel = forwardRef(function BottomPanel(
   const exitCode = latestExecution?.exitCode ?? 0;
 
   return (
-    <div className="glass-panel shell-shadow flex h-full flex-col rounded-2xl p-2">
-      <div className="mb-2 flex items-center gap-2 border-b border-[var(--color-border)] px-1 pb-2 text-sm shrink-0">
+    <div className="glass-panel flex h-full flex-col rounded-2xl p-1.5 border border-[var(--color-border)]">
+      {/* Panel Tab Header */}
+      <div className="mb-1 flex items-center gap-1 border-b border-[var(--color-border)] px-1 pb-1 text-xs shrink-0 select-none">
         <button
           onClick={() => onTabChange('terminal')}
-          className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 ${activeTab === 'terminal' ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] font-medium' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'}`}
+          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold tracking-wider uppercase transition ${
+            activeTab === 'terminal'
+              ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
+              : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+          }`}
         >
-          <Terminal size={14} />Terminal
+          <Terminal size={14} />
+          Terminal
         </button>
         <button
           onClick={() => onTabChange('output')}
-          className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 ${activeTab === 'output' ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] font-medium' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'}`}
+          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold tracking-wider uppercase transition ${
+            activeTab === 'output'
+              ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
+              : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+          }`}
         >
-          <FileOutput size={14} />Output
+          <FileOutput size={14} />
+          Output
         </button>
         <button
           onClick={() => onTabChange('problems')}
-          className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 ${activeTab === 'problems' ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] font-medium' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'}`}
+          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold tracking-wider uppercase transition ${
+            activeTab === 'problems'
+              ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
+              : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+          }`}
         >
-          <AlertTriangle size={14} />Problems
+          <AlertTriangle size={14} />
+          Problems
         </button>
       </div>
+
       <div className="min-h-0 flex-1 relative">
-        {/* Keep TerminalPanel mounted at all times to preserve live terminal history and WebSocket connection */}
         <div className={`h-full w-full ${activeTab === 'terminal' ? 'block' : 'hidden'}`}>
           <TerminalPanel
             ref={ref}
@@ -59,12 +75,12 @@ export const BottomPanel = forwardRef(function BottomPanel(
           />
         </div>
         <div className={`h-full w-full ${activeTab === 'output' ? 'block' : 'hidden'}`}>
-          <pre className="h-full overflow-auto rounded-2xl border border-[var(--color-border)] bg-[#0d1117] p-4 text-sm font-mono text-[#c9d1d9] whitespace-pre-wrap">
+          <pre className="h-full overflow-auto rounded-xl border border-[var(--color-border)] bg-[#0d1117] p-3.5 text-xs md:text-sm font-mono text-[#c9d1d9] whitespace-pre-wrap">
             {liveStream.stdout || 'Run a file to see raw output stream.'}
           </pre>
         </div>
         <div className={`h-full w-full ${activeTab === 'problems' ? 'block' : 'hidden'}`}>
-          <pre className="h-full overflow-auto rounded-2xl border border-[var(--color-border)] bg-[#0d1117] p-4 text-sm font-mono text-[#f85149] whitespace-pre-wrap">
+          <pre className="h-full overflow-auto rounded-xl border border-[var(--color-border)] bg-[#0d1117] p-3.5 text-xs md:text-sm font-mono text-[#f85149] whitespace-pre-wrap">
             {liveStream.stderr || 'No problems reported.'}
           </pre>
         </div>
