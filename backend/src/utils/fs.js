@@ -32,7 +32,13 @@ export async function writeTextFile(targetPath, content) {
 export async function copyDirectory(source, destination) {
   await fs.rm(destination, { recursive: true, force: true });
   await fs.mkdir(destination, { recursive: true });
-  await fs.cp(source, destination, { recursive: true });
+  await fs.cp(source, destination, {
+    recursive: true,
+    filter: (src) => {
+      const name = path.basename(src);
+      return name !== 'node_modules' && name !== '.git' && name !== 'dist' && name !== '.cache';
+    }
+  });
 }
 
 export function assertPathWithin(root, relativePath) {

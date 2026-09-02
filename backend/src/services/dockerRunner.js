@@ -7,7 +7,21 @@ import { env } from '../config/env.js';
 import { cacheRoot, executionsRoot } from '../utils/runtimePaths.js';
 import { copyDirectory, exists, removeIfExists } from '../utils/fs.js';
 
-const concurrencyLimiter = pLimit(2);
+const concurrencyLimiter = pLimit(10);
+let dockerAvailableCache = null;
+
+async function isDockerAvailable() {
+  if (dockerAvailableCache !== null) {
+    return dockerAvailableCache;
+  }
+  try {
+    const result = await runProcess('docker', ['--version'], 2);
+    dockerAvailableCache = result.exitCode === 0 && !isDockerFailure(result);
+  } catch {
+    dockerAvailableCache = false;
+  }
+  return dockerAvailableCache;
+}
 
 function runProcess(command, args, timeoutSeconds, stdin = '') {
   return new Promise((resolve, reject) => {
@@ -288,6 +302,10 @@ function getJavaMainClass(sourceRoot, entryFile) {
 }
 
 async function buildPythonRun(snapshotRoot, entryFile, stdin = '') {
+  if (!(await isDockerAvailable())) {
+    return runLocalPython(snapshotRoot, entryFile, stdin);
+  }
+
   const packages = await detectPythonPackages(snapshotRoot, entryFile);
   const installPackages = packages.length > 0 ? `python3 -m pip install --user ${packages.join(' ')} && ` : '';
   const command = `${installPackages}${getPythonCommand(entryFile)}`;
@@ -328,6 +346,10 @@ async function buildPythonRun(snapshotRoot, entryFile, stdin = '') {
 }
 
 async function buildCRun(snapshotRoot, stdin = '') {
+  if (!(await isDockerAvailable())) {
+    return runLocalC(snapshotRoot, stdin);
+  }
+
   const command = getCCompileCommand();
   try {
     const result = await runDockerContainer([
@@ -361,6 +383,10 @@ async function buildCRun(snapshotRoot, stdin = '') {
 }
 
 async function buildJavaRun(snapshotRoot, entryFile, stdin = '') {
+  if (!(await isDockerAvailable())) {
+    return runLocalJava(snapshotRoot, entryFile, stdin);
+  }
+
   const mainClass = await getJavaMainClass(snapshotRoot, entryFile);
   const hasPom = await exists(path.join(snapshotRoot, 'pom.xml'));
   const hasGradle = (await exists(path.join(snapshotRoot, 'build.gradle'))) || (await exists(path.join(snapshotRoot, 'build.gradle.kts')));
