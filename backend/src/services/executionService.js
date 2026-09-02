@@ -6,16 +6,19 @@ import { executeInDocker } from './dockerRunner.js';
 import { exists } from '../utils/fs.js';
 
 function detectLanguage(entryFile, projectLanguage) {
-  if (projectLanguage) {
-    return projectLanguage;
-  }
-
   if (entryFile.endsWith('.py')) return 'python';
   if (entryFile.endsWith('.c')) return 'c';
-  return 'java';
+  if (entryFile.endsWith('.cpp') || entryFile.endsWith('.cc')) return 'cpp';
+  if (entryFile.endsWith('.js') || entryFile.endsWith('.jsx') || entryFile.endsWith('.ts') || entryFile.endsWith('.mjs') || entryFile.endsWith('.cjs')) return 'javascript';
+  if (entryFile.endsWith('.java')) return 'java';
+  return projectLanguage || 'python';
 }
 
 function buildCommand(language, entryFile) {
+  if (language === 'javascript' || language === 'node') {
+    return `node ${entryFile}`;
+  }
+
   if (language === 'python') {
     return `python3 ${entryFile}`;
   }

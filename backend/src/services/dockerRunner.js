@@ -65,24 +65,54 @@ function isDockerFailure(result) {
   );
 }
 
-async function runLocalPython(snapshotRoot, entryFile, stdin = '') {
-  const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+async function runLocalNode(snapshotRoot, entryFile, stdin = '') {
   try {
-    const result = await runProcess(pythonCommand, [path.join(snapshotRoot, entryFile)], env.DOCKER_EXECUTION_TIMEOUT_SECONDS, stdin);
+    const result = await runProcess('node', [path.join(snapshotRoot, entryFile)], env.DOCKER_EXECUTION_TIMEOUT_SECONDS, stdin);
     return {
       ...result,
-      command: `${pythonCommand} ${entryFile}`,
+      command: `node ${entryFile}`,
       workingDirectory: snapshotRoot
     };
   } catch (err) {
     return {
       stdout: '',
-      stderr: `Failed to run Python locally: ${err.message}. Make sure Python is installed and in PATH.`,
+      stderr: `Failed to run JavaScript locally: ${err.message}`,
       exitCode: 1,
       timedOut: false,
-      command: `${pythonCommand} ${entryFile}`,
+      command: `node ${entryFile}`,
       workingDirectory: snapshotRoot
     };
+  }
+}
+
+async function runLocalPython(snapshotRoot, entryFile, stdin = '') {
+  const primaryCmd = process.platform === 'win32' ? 'python' : 'python3';
+  const fallbackCmd = process.platform === 'win32' ? 'python3' : 'python';
+  try {
+    const result = await runProcess(primaryCmd, [path.join(snapshotRoot, entryFile)], env.DOCKER_EXECUTION_TIMEOUT_SECONDS, stdin);
+    return {
+      ...result,
+      command: `${primaryCmd} ${entryFile}`,
+      workingDirectory: snapshotRoot
+    };
+  } catch {
+    try {
+      const result = await runProcess(fallbackCmd, [path.join(snapshotRoot, entryFile)], env.DOCKER_EXECUTION_TIMEOUT_SECONDS, stdin);
+      return {
+        ...result,
+        command: `${fallbackCmd} ${entryFile}`,
+        workingDirectory: snapshotRoot
+      };
+    } catch (err) {
+      return {
+        stdout: '',
+        stderr: `Failed to run Python locally: ${err.message}. Make sure Python is installed and in PATH.`,
+        exitCode: 1,
+        timedOut: false,
+        command: `${primaryCmd} ${entryFile}`,
+        workingDirectory: snapshotRoot
+      };
+    }
   }
 }
 
@@ -383,6 +413,10 @@ export async function executeInDocker(input) {
     const snapshotRoot = await prepareSnapshot(input.projectRoot);
 
     try {
+      if (input.language === 'javascript' || input.language === 'node') {
+        return await runLocalNode(snapshotRoot, input.entryFile, input.stdin ?? '');
+      }
+
       if (input.language === 'python') {
         return await buildPythonRun(snapshotRoot, input.entryFile, input.stdin ?? '');
       }

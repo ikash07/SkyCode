@@ -93,10 +93,15 @@ export async function spawnInteractiveExecution(input) {
   };
 
   try {
-    if (language === 'python') {
+    if (language === 'javascript' || language === 'node') {
+      commandString = `node ${entryFile}`;
+      childProcess = spawn('node', [path.join(snapshotRoot, entryFile)], {
+        cwd: snapshotRoot,
+        windowsHide: true
+      });
+    } else if (language === 'python') {
       const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
       commandString = `${pythonCmd} -u ${entryFile}`;
-      // '-u' flag disables stdout buffering so input prompts flush immediately
       childProcess = spawn(pythonCmd, ['-u', path.join(snapshotRoot, entryFile)], {
         cwd: snapshotRoot,
         windowsHide: true

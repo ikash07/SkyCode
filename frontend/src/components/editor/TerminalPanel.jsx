@@ -63,9 +63,16 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       onLiveStreamChange({ stdout: '', stderr: '' });
     }
 
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = window.location.hostname || 'localhost';
-    const wsUrl = `${wsProtocol}//${wsHost}:4000/ws/terminal`;
+    const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+    let wsUrl;
+    try {
+      const urlObj = new URL(apiBase);
+      const protocol = urlObj.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${urlObj.host}/ws/terminal`;
+    } catch {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${window.location.host}/ws/terminal`;
+    }
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -73,11 +80,13 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
 
       ws.onopen = () => {
         setIsRunning(true);
+        const token = localStorage.getItem('skycode_token') || '';
         ws.send(JSON.stringify({
           type: 'start',
           projectId,
           entryFile: activeFile,
-          language
+          language,
+          token
         }));
       };
 

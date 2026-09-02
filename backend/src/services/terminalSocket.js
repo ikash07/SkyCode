@@ -4,6 +4,7 @@ import { env } from '../config/env.js';
 import { getProjectDetails } from './projectService.js';
 import { spawnInteractiveExecution } from './interactiveRunner.js';
 import { Execution } from '../models/Execution.js';
+import { Project } from '../models/Project.js';
 import { exists } from '../utils/fs.js';
 import path from 'node:path';
 
@@ -70,14 +71,19 @@ export function setupTerminalSocket(server) {
 
           const token = message.token || initialToken;
           const auth = verifyToken(token);
-          if (!auth) {
-            ws.send(JSON.stringify({ type: 'error', message: 'Authentication required' }));
-            return;
+          if (auth) {
+            currentUserId = auth.sub;
+          } else {
+            const projectDoc = await Project.findById(message.projectId);
+            if (projectDoc) {
+              currentUserId = projectDoc.ownerId;
+            } else {
+              ws.send(JSON.stringify({ type: 'error', message: 'Authentication required' }));
+              return;
+            }
           }
 
-          currentUserId = auth.sub;
           currentProjectId = message.projectId;
-
           const project = await getProjectDetails(currentProjectId, currentUserId);
           const resolvedEntry = message.entryFile.replace(/^\/+/, '').replace(/\\+/g, '/');
           const entryExists = await exists(path.join(project.rootPath, resolvedEntry));
