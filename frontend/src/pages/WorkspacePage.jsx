@@ -489,7 +489,7 @@ export function WorkspacePage() {
           {/* Footer Status Bar */}
           <div className="flex items-center justify-between border-t border-[var(--color-border)] bg-black/10 dark:bg-white/[0.03] px-3.5 py-1.5 text-xs font-mono text-[var(--color-muted)] select-none shrink-0">
             <div className="flex items-center gap-3.5 font-medium">
-              <span>{project.language === 'python' ? 'Python 3.11.6' : project.language?.toUpperCase() || 'UTF-8'}</span>
+              <span>{project.language === 'python' ? 'Python 3.11.6' : project.language === 'javascript' ? 'Node.js' : project.language === 'c' ? 'GCC C17' : project.language === 'java' ? 'JDK 21' : project.language?.toUpperCase() || 'UTF-8'}</span>
               <span>UTF-8</span>
               <span>Spaces: 4</span>
               <span>Ln 12, Col 5</span>

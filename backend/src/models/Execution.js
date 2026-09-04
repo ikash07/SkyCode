@@ -4,7 +4,7 @@ const executionSchema = new Schema(
   {
     projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true, index: true },
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    language: { type: String, enum: ['python', 'c', 'java'], required: true },
+    language: { type: String, enum: ['python', 'c', 'java', 'javascript'], required: true },
     entryFile: { type: String, required: true },
     command: { type: String, required: true },
     stdin: { type: String, default: '' },

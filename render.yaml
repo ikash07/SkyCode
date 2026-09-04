@@ -5,7 +5,7 @@ services:
     plan: free
     region: singapore
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: (python3 -m pip --version || (curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py && python3 /tmp/get-pip.py --user --break-system-packages --no-warn-script-location && rm -f /tmp/get-pip.py)) && export PATH="$HOME/.local/bin:$PATH" && (python3 -m pip install --user --break-system-packages SpeechRecognition python-dotenv edge-tts requests google-genai || true) && npm install
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:

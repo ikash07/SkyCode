@@ -4,7 +4,7 @@ import { listExecutionHistory, runProjectCode } from '../services/executionServi
 
 const executionSchema = z.object({
   entryFile: z.string().min(1),
-  language: z.enum(['python', 'c', 'java']).optional(),
+  language: z.enum(['python', 'c', 'java', 'javascript']).optional(),
   stdin: z.string().optional()
 });
 

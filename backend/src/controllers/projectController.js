@@ -10,7 +10,7 @@ import { projectsRoot } from '../utils/runtimePaths.js';
 const projectSchema = z.object({
   name: z.string().min(1).max(80),
   description: z.string().max(200).optional(),
-  language: z.enum(['python', 'c', 'java']).optional()
+  language: z.enum(['python', 'c', 'java', 'javascript']).optional()
 });
 
 const fileSchema = z.object({

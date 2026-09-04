@@ -62,6 +62,8 @@ export function DashboardPage() {
         return { bg: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/20', icon: <Terminal size={18} /> };
       case 'java':
         return { bg: 'bg-amber-500/15 text-amber-400 border-amber-500/20', icon: <Server size={18} /> };
+      case 'javascript':
+        return { bg: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/20', icon: <Code2 size={18} /> };
       default:
         return { bg: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20', icon: <Code2 size={18} /> };
     }
@@ -157,6 +159,7 @@ export function DashboardPage() {
                     className="w-full appearance-none rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-xs md:text-sm text-[var(--color-text)] outline-none transition focus:border-[var(--color-accent)] cursor-pointer"
                   >
                     <option value="python" className="bg-[var(--color-canvas)] text-[var(--color-text)]">Python</option>
+                    <option value="javascript" className="bg-[var(--color-canvas)] text-[var(--color-text)]">JavaScript</option>
                     <option value="c" className="bg-[var(--color-canvas)] text-[var(--color-text)]">C Language</option>
                     <option value="java" className="bg-[var(--color-canvas)] text-[var(--color-text)]">Java</option>
                   </select>

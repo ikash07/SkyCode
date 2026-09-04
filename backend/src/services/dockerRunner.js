@@ -6,6 +6,7 @@ import pLimit from 'p-limit';
 import { env } from '../config/env.js';
 import { cacheRoot, executionsRoot } from '../utils/runtimePaths.js';
 import { copyDirectory, exists, removeIfExists } from '../utils/fs.js';
+import { detectPythonDependencies, ensureLocalPythonDependencies, getPythonEnvironment } from '../utils/pythonPackages.js';
 
 const concurrencyLimiter = pLimit(10);
 let dockerAvailableCache = null;
@@ -23,9 +24,13 @@ async function isDockerAvailable() {
   return dockerAvailableCache;
 }
 
-function runProcess(command, args, timeoutSeconds, stdin = '') {
+function runProcess(command, args, timeoutSeconds, stdin = '', options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { windowsHide: true });
+    const child = spawn(command, args, {
+      windowsHide: true,
+      cwd: options.cwd,
+      env: options.env || process.env
+    });
     let stdout = '';
     let stderr = '';
     let finished = false;
@@ -102,8 +107,20 @@ async function runLocalNode(snapshotRoot, entryFile, stdin = '') {
 async function runLocalPython(snapshotRoot, entryFile, stdin = '') {
   const primaryCmd = process.platform === 'win32' ? 'python' : 'python3';
   const fallbackCmd = process.platform === 'win32' ? 'python3' : 'python';
+  const pythonEnv = getPythonEnvironment(snapshotRoot);
+
+  // Auto-install missing Python dependencies before execution
   try {
-    const result = await runProcess(primaryCmd, [path.join(snapshotRoot, entryFile)], env.DOCKER_EXECUTION_TIMEOUT_SECONDS, stdin);
+    await ensureLocalPythonDependencies(snapshotRoot, entryFile);
+  } catch {
+    // Ignore install errors — the script itself will report ImportError
+  }
+
+  try {
+    const result = await runProcess(primaryCmd, [path.join(snapshotRoot, entryFile)], env.DOCKER_EXECUTION_TIMEOUT_SECONDS, stdin, {
+      cwd: snapshotRoot,
+      env: pythonEnv
+    });
     return {
       ...result,
       command: `${primaryCmd} ${entryFile}`,
@@ -111,7 +128,10 @@ async function runLocalPython(snapshotRoot, entryFile, stdin = '') {
     };
   } catch {
     try {
-      const result = await runProcess(fallbackCmd, [path.join(snapshotRoot, entryFile)], env.DOCKER_EXECUTION_TIMEOUT_SECONDS, stdin);
+      const result = await runProcess(fallbackCmd, [path.join(snapshotRoot, entryFile)], env.DOCKER_EXECUTION_TIMEOUT_SECONDS, stdin, {
+        cwd: snapshotRoot,
+        env: pythonEnv
+      });
       return {
         ...result,
         command: `${fallbackCmd} ${entryFile}`,
@@ -263,26 +283,7 @@ async function prepareSnapshot(projectRoot) {
 }
 
 async function detectPythonPackages(snapshotRoot, entryFile) {
-  const targetPath = path.join(snapshotRoot, entryFile);
-  if (!(await exists(targetPath))) {
-    return [];
-  }
-
-  const source = await fs.readFile(targetPath, 'utf8');
-  const imports = new Set();
-  for (const line of source.split(/\r?\n/)) {
-    const importMatch = line.match(/^\s*import\s+([a-zA-Z0-9_\.]+)/);
-    if (importMatch) {
-      imports.add(importMatch[1].split('.')[0]);
-    }
-    const fromMatch = line.match(/^\s*from\s+([a-zA-Z0-9_\.]+)\s+import\s+/);
-    if (fromMatch) {
-      imports.add(fromMatch[1].split('.')[0]);
-    }
-  }
-
-  const builtin = new Set(['os', 'sys', 'json', 'math', 'time', 'pathlib', 'typing', 'subprocess', 'collections', 'dataclasses', 'asyncio', 're', 'itertools', 'threading', 'logging', 'statistics', 'functools', 'random', 'datetime', 'enum', 'hashlib', 'heapq', 'queue', 'tempfile', 'unittest', 'http', 'csv']);
-  return [...imports].filter((item) => !builtin.has(item));
+  return detectPythonDependencies(snapshotRoot, entryFile);
 }
 
 function getPythonCommand(entryFile) {
@@ -345,9 +346,9 @@ async function buildPythonRun(snapshotRoot, entryFile, stdin = '') {
   }
 }
 
-async function buildCRun(snapshotRoot, stdin = '') {
+async function buildCRun(snapshotRoot, entryFile = '', stdin = '') {
   if (!(await isDockerAvailable())) {
-    return runLocalC(snapshotRoot, stdin);
+    return runLocalC(snapshotRoot, entryFile, stdin);
   }
 
   const command = getCCompileCommand();
@@ -374,11 +375,11 @@ async function buildCRun(snapshotRoot, stdin = '') {
     ], env.DOCKER_EXECUTION_TIMEOUT_SECONDS, stdin);
 
     if (isDockerFailure(result)) {
-      return runLocalC(snapshotRoot, stdin);
+      return runLocalC(snapshotRoot, entryFile, stdin);
     }
     return result;
   } catch {
-    return runLocalC(snapshotRoot, stdin);
+    return runLocalC(snapshotRoot, entryFile, stdin);
   }
 }
 
@@ -448,7 +449,7 @@ export async function executeInDocker(input) {
       }
 
       if (input.language === 'c') {
-        return await buildCRun(snapshotRoot, input.stdin ?? '');
+        return await buildCRun(snapshotRoot, input.entryFile, input.stdin ?? '');
       }
 
       return await buildJavaRun(snapshotRoot, input.entryFile, input.stdin ?? '');

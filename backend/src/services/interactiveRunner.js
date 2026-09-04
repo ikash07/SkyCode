@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { env } from '../config/env.js';
 import { executionsRoot } from '../utils/runtimePaths.js';
 import { copyDirectory, removeIfExists } from '../utils/fs.js';
+import { ensureLocalPythonDependencies, getPythonEnvironment } from '../utils/pythonPackages.js';
 
 function runCompileProcess(command, args, cwd) {
   return new Promise((resolve) => {
@@ -102,8 +103,21 @@ export async function spawnInteractiveExecution(input) {
     } else if (language === 'python') {
       const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
       commandString = `${pythonCmd} -u ${entryFile}`;
+
+      // Auto-install missing Python dependencies before execution
+      try {
+        await ensureLocalPythonDependencies(snapshotRoot, entryFile, (logChunk) => {
+          if (onStdout) onStdout(logChunk);
+        });
+      } catch {
+        // Ignore install errors — the script itself will report ImportError
+      }
+
+      const pythonEnv = getPythonEnvironment(snapshotRoot);
+
       childProcess = spawn(pythonCmd, ['-u', path.join(snapshotRoot, entryFile)], {
         cwd: snapshotRoot,
+        env: pythonEnv,
         windowsHide: true
       });
     } else if (language === 'c') {

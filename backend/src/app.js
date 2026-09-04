@@ -35,10 +35,25 @@ export function createApp() {
     next();
   });
 
-  app.get('/api/health', (_req, res) => {
+  // Health check endpoint for UptimeRobot & monitoring services
+  const healthHandler = (_req, res) => {
     const dbState = ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState] || 'unknown';
-    res.json({ ok: true, service: 'online-ide-backend', database: dbState });
-  });
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    res.status(200).json({
+      status: 'ok',
+      ok: true,
+      service: 'online-ide-backend',
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+      database: dbState
+    });
+  };
+
+  app.get('/api/health', healthHandler);
+  app.get('/health', healthHandler);
 
   app.use('/api/auth', authRoutes);
   app.use('/api/projects', projectRoutes);
