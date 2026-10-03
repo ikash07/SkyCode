@@ -74,23 +74,36 @@ export function AuthPage() {
       <FloatingStar style={{ bottom: '10%', left: '10%' }} size={22} rotate={30} />
       <FloatingStar style={{ bottom: '14%', right: '6%' }} size={32} rotate={-20} />
 
-      {/* ── Marquee-style top strip ── */}
+      {/* ── Seamless Infinite Scroll top strip ── */}
       <div
-        className="absolute top-0 inset-x-0 flex items-center gap-8 px-6 py-2 overflow-hidden"
+        className="absolute top-0 inset-x-0 overflow-hidden py-1.5 border-b-2 border-black select-none z-10"
         style={{
           background: '#000',
           color: '#FFD93D',
-          fontSize: '0.68rem',
+          fontSize: '0.72rem',
           fontWeight: 900,
           letterSpacing: '0.2em',
           textTransform: 'uppercase',
         }}
       >
-        {Array.from({ length: 10 }).map((_, i) => (
-          <span key={i} className="shrink-0 flex items-center gap-2">
-            <Zap size={11} strokeWidth={3} fill="#FFD93D" /> SKYCODE IDE
-          </span>
-        ))}
+        <div className="nb-marquee-track">
+          {/* Track 1 */}
+          <div className="flex items-center shrink-0">
+            {Array.from({ length: 18 }).map((_, i) => (
+              <span key={`t1-${i}`} className="inline-flex items-center gap-2 mx-5">
+                <Zap size={11} strokeWidth={3} fill="#FFD93D" /> SKYCODE IDE
+              </span>
+            ))}
+          </div>
+          {/* Track 2 (clone for gapless infinite scroll) */}
+          <div className="flex items-center shrink-0" aria-hidden="true">
+            {Array.from({ length: 18 }).map((_, i) => (
+              <span key={`t2-${i}`} className="inline-flex items-center gap-2 mx-5">
+                <Zap size={11} strokeWidth={3} fill="#FFD93D" /> SKYCODE IDE
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* ── Auth card ── */}

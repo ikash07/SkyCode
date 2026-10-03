@@ -338,6 +338,27 @@ body {
 }
 .nb-spin-slow { animation: spin-slow 10s linear infinite; }
 
+/* ── Seamless Infinite Marquee Ticker ── */
+@keyframes nb-marquee-scroll {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.nb-marquee-track {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: nb-marquee-scroll var(--marquee-speed, 35s) linear infinite;
+}
+
+.nb-marquee-track:hover {
+  animation-play-state: paused;
+}
+
 /* ═══════════ COMPAT ALIASES (existing classes) ═══════════ */
 .glass-panel {
   background: var(--color-panel) !important;
