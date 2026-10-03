@@ -9,7 +9,24 @@ export default function App() {
   const { loading, user } = useAuth();
 
   if (loading) {
-    return <div className="grid min-h-full place-items-center text-sm text-[var(--color-muted)]">Loading SkyCode...</div>;
+    return (
+      <div
+        className="grid min-h-full place-items-center"
+        style={{ background: 'var(--color-canvas)' }}
+      >
+        <div
+          className="flex flex-col items-center gap-4 px-8 py-6"
+          style={{
+            border: '3px solid #000',
+            boxShadow: '8px 8px 0px 0px #000',
+            background: '#FFD93D',
+          }}
+        >
+          <div className="text-2xl font-black uppercase tracking-tight text-black">SkyCode</div>
+          <div className="text-xs font-black uppercase tracking-widest text-black/60">Loading IDE…</div>
+        </div>
+      </div>
+    );
   }
 
   return (

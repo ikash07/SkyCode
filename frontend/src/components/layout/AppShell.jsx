@@ -1,60 +1,89 @@
 import { useThemeMode } from '../../hooks/useThemeMode';
 import { useAuth } from '../../context/AuthContext';
-import { MoonStar, SunMedium, Rocket, Bell } from 'lucide-react';
+import { MoonStar, SunMedium, Rocket, Bell, Zap } from 'lucide-react';
 
 export function AppShell({ children, projectName }) {
   const { theme, setTheme } = useThemeMode();
   const { user } = useAuth();
 
-  const userInitial = user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'A';
+  const userInitial = user?.displayName
+    ? user.displayName.charAt(0).toUpperCase()
+    : 'A';
 
   return (
-    <div className="flex min-h-full flex-col">
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-24 bg-gradient-to-b from-white/5 to-transparent" />
-      
-      {/* App Header */}
-      <header className="glass-panel shell-shadow m-2 md:m-3 flex flex-wrap items-center justify-between rounded-2xl px-3 sm:px-4 py-2.5 gap-2">
+    <div className="flex min-h-full flex-col" style={{ background: 'var(--color-canvas)' }}>
+      {/* ── Header ── */}
+      <header
+        className="m-3 flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+        style={{
+          background: 'var(--color-panel)',
+          border: '3px solid var(--color-border)',
+          boxShadow: 'var(--shadow-md)',
+        }}
+      >
         {/* Left: Logo */}
         <div className="flex items-center gap-3">
-          <div className="skycode-logo-glow relative flex h-9 w-9 md:h-10 md:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f8cff] to-[#7c3aed] shrink-0">
-            <Rocket size={20} className="text-white drop-shadow-lg" />
+          <div
+            className="nb-logo-box"
+            style={{ width: 42, height: 42 }}
+          >
+            <Rocket size={22} strokeWidth={3} color="#000" />
           </div>
-          <div className="flex flex-col">
-            <span className="skycode-gradient-text text-xl font-bold tracking-wide leading-tight">SkyCode</span>
-            <span className="text-[10px] sm:text-xs uppercase tracking-[0.25em] text-[var(--color-muted)] font-medium">Online IDE</span>
+          <div className="flex flex-col leading-none">
+            <span
+              className="text-xl font-black tracking-tight uppercase"
+              style={{ color: 'var(--color-text)', letterSpacing: '-0.02em' }}
+            >
+              SkyCode
+            </span>
+            <span className="nb-label" style={{ marginTop: 2 }}>Online IDE</span>
           </div>
         </div>
 
-        {/* Center: Active Project Indicator */}
+        {/* Center: Active Project */}
         {projectName && (
-          <div className="hidden sm:flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-1 text-xs">
-            <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">Project</span>
-            <span className="font-semibold text-[var(--color-text)] uppercase tracking-wider text-xs md:text-sm">{projectName}</span>
+          <div
+            className="hidden sm:flex items-center gap-2 px-3 py-1"
+            style={{
+              border: '3px solid var(--color-border)',
+              background: 'var(--color-secondary)',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <Zap size={14} strokeWidth={3} fill="#000" color="#000" />
+            <span className="text-xs font-black uppercase tracking-widest text-black">
+              {projectName}
+            </span>
           </div>
         )}
 
-        {/* Right: Actions & User Avatar */}
-        <div className="flex items-center gap-2.5">
-          <button
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-[var(--color-text)] transition"
-            title="Notifications"
-          >
-            <Bell size={16} />
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2">
+          {/* Notifications */}
+          <button className="nb-btn-icon" title="Notifications" aria-label="Notifications">
+            <Bell size={17} strokeWidth={3} />
           </button>
 
+          {/* Theme toggle */}
           <button
+            id="header-theme-toggle"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-1 px-2.5 py-1.5 text-xs md:text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] transition font-medium"
+            className="nb-btn-ghost"
             title="Toggle theme"
           >
-            {theme === 'dark' ? <SunMedium size={15} /> : <MoonStar size={15} />}
-            <span className="text-xs md:text-sm">{theme === 'dark' ? 'Light' : 'Dark'}</span>
+            {theme === 'dark' ? <SunMedium size={15} strokeWidth={3} /> : <MoonStar size={15} strokeWidth={3} />}
+            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
           </button>
 
           {/* User Avatar */}
           <div
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#4f8cff] to-[#7c3aed] text-sm font-bold text-white shadow shrink-0"
+            className="flex h-10 w-10 items-center justify-center font-black text-sm shrink-0"
+            style={{
+              background: 'var(--color-accent)',
+              border: '3px solid var(--color-border)',
+              boxShadow: 'var(--shadow-sm)',
+              color: '#fff',
+            }}
             title={user?.displayName || 'User'}
           >
             {userInitial}
@@ -62,7 +91,7 @@ export function AppShell({ children, projectName }) {
         </div>
       </header>
 
-      <main className="flex-1 px-2 md:px-3 pb-3">{children}</main>
+      <main className="flex-1 px-3 pb-3">{children}</main>
     </div>
   );
 }

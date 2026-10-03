@@ -8,5 +8,6 @@ coverage
 backend/storage/projects
 backend/storage/executions
 backend/storage/cache
+storage/
 frontend/dist
 *.log

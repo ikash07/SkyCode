@@ -24,7 +24,7 @@ import {
 } from '../api/projects';
 import { useThemeMode } from '../hooks/useThemeMode';
 import { detectLanguageFromPath, guessEntryFile } from '../utils/language';
-import { ArrowLeft, Play, Folder, Upload, MoreHorizontal, Cloud, Rocket } from 'lucide-react';
+import { Play, Rocket, Terminal, Cloud } from 'lucide-react';
 
 export function WorkspacePage() {
   const { projectId } = useParams();
@@ -42,8 +42,37 @@ export function WorkspacePage() {
   const [stdin, setStdin] = useState('');
   const [busy, setBusy] = useState(false);
   const [terminalHeight, setTerminalHeight] = useState(250);
+  const [isTerminalVisible, setIsTerminalVisible] = useState(true);
   const isResizingRef = useRef(false);
   const terminalRef = useRef(null);
+
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const dynamicCodeFontSize = useMemo(() => {
+    const customSize = project?.settings?.fontSize;
+    if (customSize && customSize !== 14 && customSize !== 15) {
+      return customSize;
+    }
+    if (windowWidth < 640) return 11;
+    if (windowWidth < 768) return 12;
+    if (windowWidth < 1024) return 13;
+    if (windowWidth < 1440) return 14;
+    if (windowWidth < 1920) return 15;
+    return 16;
+  }, [windowWidth, project?.settings?.fontSize]);
+
+  const toggleTerminal = () => {
+    setIsTerminalVisible((prev) => !prev);
+    if (!isTerminalVisible) {
+      setBottomTab('terminal');
+    }
+  };
 
   const handleResizeMouseDown = useCallback((e) => {
     e.preventDefault();
@@ -187,15 +216,33 @@ export function WorkspacePage() {
 
   const runActiveFile = async (overrideStdin = null) => {
     if (!projectId) return;
+
+    // 1. Resolve entry file immediately
+    const targetFile = activeFileRef.current || activeFile || guessEntryFile(tree, projectRef.current?.language ?? 'python');
+    if (!activeFile && targetFile) {
+      setActiveFile(targetFile);
+    }
+
+    // 2. Save any dirty/unsaved edits immediately before executing so backend runs latest code
+    const fileToSave = targetFile || activeFileRef.current;
+    if (fileToSave) {
+      const currentDoc = openFilesRef.current.find((f) => f.path === fileToSave);
+      if (currentDoc && currentDoc.dirty) {
+        await saveFile(fileToSave);
+      }
+    }
+
+    // 3. Make terminal visible and switch tab
+    setIsTerminalVisible(true);
     setBottomTab('terminal');
 
+    // 4. Run immediately on 1st click
     if (terminalRef.current && terminalRef.current.startInteractiveExecution) {
-      terminalRef.current.startInteractiveExecution();
+      terminalRef.current.startInteractiveExecution(targetFile);
       return;
     }
 
-    const entryFile = activeFileRef.current || guessEntryFile(tree, projectRef.current?.language ?? 'python');
-    if (!entryFile) return;
+    if (!targetFile) return;
 
     const currentStdin = overrideStdin !== null ? overrideStdin : stdin;
 
@@ -203,8 +250,8 @@ export function WorkspacePage() {
     try {
       const response = await runProjectRequest(
         projectId,
-        entryFile,
-        projectRef.current?.language || detectLanguageFromPath(entryFile),
+        targetFile,
+        projectRef.current?.language || detectLanguageFromPath(targetFile),
         currentStdin
       );
       setLatestExecution(response.execution);
@@ -323,8 +370,21 @@ export function WorkspacePage() {
 
   if (!project) {
     return (
-      <div className="grid min-h-full place-items-center text-sm md:text-base font-medium text-[var(--color-muted)]">
-        Loading SkyCode workspace...
+      <div
+        className="grid min-h-full place-items-center"
+        style={{ background: 'var(--color-canvas)' }}
+      >
+        <div
+          className="flex flex-col items-center gap-3 px-8 py-6"
+          style={{
+            background: '#FFD93D',
+            border: '3px solid #000',
+            boxShadow: '8px 8px 0px 0px #000',
+          }}
+        >
+          <div className="text-xl font-black uppercase tracking-tight text-black">SkyCode</div>
+          <div className="text-xs font-black uppercase tracking-widest text-black/60">Loading Workspace…</div>
+        </div>
       </div>
     );
   }
@@ -333,7 +393,13 @@ export function WorkspacePage() {
     <AppShell projectName={project.name}>
       <div className="flex flex-col md:grid h-auto md:h-[calc(100vh-95px)] md:grid-cols-[60px_280px_1fr] gap-3">
         {/* Left Sidebar */}
-        <Sidebar active={sidebarView} onChange={setSidebarView} onRun={() => void runActiveFile()} />
+        <Sidebar
+          active={sidebarView}
+          onChange={setSidebarView}
+          onRun={() => void runActiveFile()}
+          isTerminalVisible={isTerminalVisible}
+          onToggleTerminal={toggleTerminal}
+        />
 
         {/* Dynamic Left Panel */}
         <div className="min-h-0 h-[280px] md:h-full">
@@ -347,6 +413,7 @@ export function WorkspacePage() {
               onRename={(path) => void renamePath(path)}
               onDelete={(path) => void deletePath(path)}
               onUpload={() => void uploadFiles()}
+              onToggleTerminal={toggleTerminal}
             />
           ) : null}
           {sidebarView === 'search' ? (
@@ -368,66 +435,69 @@ export function WorkspacePage() {
         </div>
 
         {/* Main Editor & Terminal Shell */}
-        <div className="editor-shell glass-panel shell-shadow flex min-h-0 flex-1 flex-col rounded-3xl border border-[var(--color-border)] overflow-hidden">
-          {/* Editor Header Toolbar */}
-          <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-2.5 bg-black/5 dark:bg-white/[0.02]">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => navigate('/')}
-                className="flex items-center gap-1.5 text-xs md:text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] transition font-medium"
-                title="Back to Dashboard"
-              >
-                <ArrowLeft size={16} />
-                <span className="font-bold uppercase tracking-wider">{project.name}</span>
-              </button>
+        <div
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          style={{
+            background: 'var(--color-panel)',
+            border: '3px solid var(--color-border)',
+            boxShadow: 'var(--shadow-md)',
+          }}
+        >
+          {/* Unified Minimal Header Bar: File Tabs on Left, Language & Run on Right */}
+          <div
+            className="flex items-center justify-between px-2.5 py-1.5 shrink-0 select-none"
+            style={{
+              background: 'var(--color-surface)',
+              borderBottom: '3px solid var(--color-border)',
+            }}
+          >
+            {/* File Tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto min-w-0 flex-1 py-0.5">
+              <FileTabs
+                openFiles={openFiles.map((file) => file.path)}
+                activeFile={activeFile}
+                onSelect={setActiveFile}
+                onClose={(filePath) =>
+                  setOpenFiles((current) => current.filter((file) => file.path !== filePath))
+                }
+              />
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="rounded-lg border border-[var(--color-accent-soft)] bg-[var(--color-accent-soft)] px-2.5 py-1 text-xs font-bold uppercase tracking-widest text-[var(--color-accent)]">
+            {/* Right: Language Badge & Run Button */}
+            <div className="flex items-center gap-2 shrink-0 pl-2">
+              <span
+                className="hidden sm:inline px-2.5 py-1 text-xs font-black uppercase tracking-widest"
+                style={{
+                  background: '#C4B5FD',
+                  border: '2px solid #000',
+                  boxShadow: '2px 2px 0px 0px #000',
+                  color: '#000',
+                }}
+              >
                 {project.language}
               </span>
+
               <button
-                onClick={() => void createFile()}
-                className="rounded-lg p-1.5 text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-black/10 dark:hover:bg-white/10"
-                title="New File"
-              >
-                <Folder size={16} />
-              </button>
-              <button
-                onClick={() => void uploadFiles()}
-                className="rounded-lg p-1.5 text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-black/10 dark:hover:bg-white/10"
-                title="Upload File"
-              >
-                <Upload size={16} />
-              </button>
-              <button
+                id="workspace-run-btn"
                 onClick={() => void runActiveFile()}
                 disabled={busy}
-                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#4f8cff] to-[#7c3aed] px-4 py-1.5 text-xs md:text-sm font-bold text-white shadow transition hover:opacity-95 disabled:opacity-60"
+                className="flex items-center gap-1.5 px-3 py-1 text-xs font-black uppercase tracking-wider transition-all duration-100 active:translate-x-[1px] active:translate-y-[1px]"
+                style={{
+                  background: '#FFD93D',
+                  border: '2px solid #000',
+                  boxShadow: '2px 2px 0px 0px #000',
+                  color: '#000',
+                  cursor: 'pointer',
+                }}
+                title="Run Code"
               >
-                <Play size={13} className="fill-white" />
-                Run
-              </button>
-              <button
-                className="rounded-lg p-1.5 text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-black/10 dark:hover:bg-white/10"
-                title="More Options"
-              >
-                <MoreHorizontal size={16} />
+                <Play size={12} strokeWidth={3} className="fill-black" />
+                <span>{busy ? 'Running…' : 'Run'}</span>
               </button>
             </div>
           </div>
 
-          {/* Open Tabs Bar */}
-          <FileTabs
-            openFiles={openFiles.map((file) => file.path)}
-            activeFile={activeFile}
-            onSelect={setActiveFile}
-            onClose={(filePath) =>
-              setOpenFiles((current) => current.filter((file) => file.path !== filePath))
-            }
-          />
-
-          {/* Main Workspace Editor View */}
+          {/* Main Editor View */}
           <div className="relative min-h-0 flex-1">
             {activeFile ? (
               <CodeEditor
@@ -440,33 +510,57 @@ export function WorkspacePage() {
                     triggerAutosave(activeFile);
                   }
                 }}
-                fontSize={project.settings.fontSize || 15}
+                fontSize={dynamicCodeFontSize}
                 theme={theme}
               />
             ) : (
-              /* Watermark Empty State */
-              <div className="grid h-full place-items-center text-center select-none p-6">
-                <div className="flex flex-col items-center">
-                  <div className="skycode-logo-glow flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-[#4f8cff]/20 to-[#7c3aed]/20 border border-[var(--color-border)] mb-3">
-                    <Rocket size={32} className="text-[var(--color-accent)] opacity-80" />
+              /* Empty state */
+              <div
+                className="grid h-full place-items-center text-center select-none p-6"
+                style={{ background: 'var(--color-canvas)' }}
+              >
+                <div className="flex flex-col items-center gap-4">
+                  <div
+                    className="flex h-16 w-16 items-center justify-center"
+                    style={{
+                      background: '#FFD93D',
+                      border: '3px solid #000',
+                      boxShadow: '6px 6px 0px 0px #000',
+                    }}
+                  >
+                    <Rocket size={30} strokeWidth={2.5} color="#000" />
                   </div>
-                  <div className="text-base md:text-lg font-bold text-[var(--color-text)]">Build something great</div>
-                  <div className="mt-1 text-xs md:text-sm text-[var(--color-muted)] font-medium">
-                    Select a file from the explorer to start coding.
+                  <div>
+                    <div className="text-lg font-black uppercase tracking-tight" style={{ color: 'var(--color-text)' }}>
+                      Build Something Great
+                    </div>
+                    <div className="mt-1 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-muted)' }}>
+                      Select a file from the explorer →
+                    </div>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Resizable Terminal Container */}
-          <div style={{ height: `${terminalHeight}px` }} className="relative flex flex-col p-2 pt-0 shrink-0">
+          {/* Resizable Terminal - Kept mounted to prevent null ref on 1st click and preserve terminal history */}
+          <div
+            style={{
+              height: `${terminalHeight}px`,
+              display: isTerminalVisible ? 'flex' : 'none',
+            }}
+            className="relative flex-col shrink-0"
+          >
+            {/* Resize handle */}
             <div
               onMouseDown={handleResizeMouseDown}
-              className="group flex h-2 w-full cursor-ns-resize items-center justify-center py-0.5 select-none rounded transition-colors shrink-0"
-              title="Drag to resize terminal"
+              className="group flex h-3 w-full cursor-ns-resize items-center justify-center select-none shrink-0"
+              style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-surface)' }}
             >
-              <div className="h-1 w-12 rounded-full bg-black/20 dark:bg-white/20 group-hover:bg-[var(--color-accent)] transition-colors" />
+              <div
+                className="h-1 w-10 transition-colors"
+                style={{ background: 'var(--color-border)', opacity: 0.4 }}
+              />
             </div>
 
             <div className="min-h-0 flex-1">
@@ -480,22 +574,52 @@ export function WorkspacePage() {
                 onRun={(customStdin) => void runActiveFile(customStdin)}
                 busy={busy}
                 projectId={projectId}
-                activeFile={activeFile}
+                activeFile={activeFile || (tree && guessEntryFile(tree, project?.language ?? 'python'))}
                 language={project?.language}
+                onHide={() => setIsTerminalVisible(false)}
               />
             </div>
           </div>
 
           {/* Footer Status Bar */}
-          <div className="flex items-center justify-between border-t border-[var(--color-border)] bg-black/10 dark:bg-white/[0.03] px-3.5 py-1.5 text-xs font-mono text-[var(--color-muted)] select-none shrink-0">
-            <div className="flex items-center gap-3.5 font-medium">
-              <span>{project.language === 'python' ? 'Python 3.11.6' : project.language === 'javascript' ? 'Node.js' : project.language === 'c' ? 'GCC C17' : project.language === 'java' ? 'JDK 21' : project.language?.toUpperCase() || 'UTF-8'}</span>
+          <div
+            className="flex items-center justify-between px-3.5 py-1.5 text-xs font-mono select-none shrink-0"
+            style={{
+              background: '#000',
+              borderTop: '3px solid var(--color-border)',
+              color: '#FFD93D',
+            }}
+          >
+            <div className="flex items-center gap-4 font-bold uppercase tracking-wider text-[10px]">
+              {!isTerminalVisible && (
+                <button
+                  id="footer-terminal-toggle"
+                  onClick={toggleTerminal}
+                  className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider transition-all"
+                  style={{
+                    background: '#FFD93D',
+                    color: '#000',
+                    border: '1px solid #000',
+                    boxShadow: '1px 1px 0px 0px #000',
+                  }}
+                  title="Open Terminal"
+                >
+                  <Terminal size={11} strokeWidth={3} />
+                  <span>Terminal</span>
+                </button>
+              )}
+              <span>{
+                project.language === 'python' ? 'Python 3.11.6'
+                  : project.language === 'javascript' ? 'Node.js'
+                  : project.language === 'c' ? 'GCC C17'
+                  : project.language === 'java' ? 'JDK 21'
+                  : project.language?.toUpperCase() || 'UTF-8'
+              }</span>
               <span>UTF-8</span>
               <span>Spaces: 4</span>
-              <span>Ln 12, Col 5</span>
             </div>
-            <div className="flex items-center gap-1.5 text-emerald-400 font-sans text-xs font-semibold">
-              <Cloud size={14} />
+            <div className="flex items-center gap-1.5 font-black uppercase tracking-widest text-[10px]">
+              <Cloud size={12} strokeWidth={3} />
               <span>Synced</span>
             </div>
           </div>
@@ -504,43 +628,63 @@ export function WorkspacePage() {
 
       {/* Path Dialog Modal */}
       {pathDialog ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-3xl border border-[var(--color-border)] bg-[var(--color-panel)] p-6 shadow-2xl backdrop-blur-xl">
-            <div className="text-xs uppercase tracking-[0.32em] font-bold text-[var(--color-muted)]">{pathDialog.title}</div>
-            <input
-              autoFocus
-              value={pathInput}
-              onChange={(event) => setPathInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  void submitPathDialog();
-                }
-                if (event.key === 'Escape') {
-                  setPathDialog(null);
-                  setPathInput('');
-                }
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.75)' }}
+        >
+          <div
+            className="w-full max-w-md"
+            style={{
+              background: 'var(--color-panel)',
+              border: '3px solid var(--color-border)',
+              boxShadow: 'var(--shadow-xl)',
+            }}
+          >
+            {/* Modal header */}
+            <div
+              className="px-5 py-4"
+              style={{
+                background: '#FFD93D',
+                borderBottom: '3px solid var(--color-border)',
               }}
-              placeholder={pathDialog.mode === 'rename' ? 'Enter new path' : 'Enter path like src/main.py'}
-              className="mt-4 w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 outline-none text-xs md:text-sm text-[var(--color-text)] font-medium"
-            />
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setPathDialog(null);
-                  setPathInput('');
+            >
+              <div className="text-sm font-black uppercase tracking-widest text-black">
+                {pathDialog.title}
+              </div>
+            </div>
+
+            {/* Modal body */}
+            <div className="p-5">
+              <input
+                id="path-dialog-input"
+                autoFocus
+                value={pathInput}
+                onChange={(e) => setPathInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); void submitPathDialog(); }
+                  if (e.key === 'Escape') { setPathDialog(null); setPathInput(''); }
                 }}
-                className="rounded-2xl border border-[var(--color-border)] px-4 py-2 text-xs md:text-sm font-semibold text-[var(--color-text)]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => void submitPathDialog()}
-                disabled={pathDialogBusy || !pathInput.trim()}
-                className="rounded-2xl bg-gradient-to-r from-[#4f8cff] to-[#7c3aed] px-4 py-2 text-xs md:text-sm font-bold text-white shadow disabled:opacity-60"
-              >
-                {pathDialogBusy ? 'Saving...' : pathDialog.confirmLabel}
-              </button>
+                placeholder={pathDialog.mode === 'rename' ? 'Enter new path' : 'e.g. src/main.py'}
+                className="nb-input"
+              />
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  id="path-dialog-cancel"
+                  onClick={() => { setPathDialog(null); setPathInput(''); }}
+                  className="nb-btn-ghost"
+                >
+                  Cancel
+                </button>
+                <button
+                  id="path-dialog-confirm"
+                  onClick={() => void submitPathDialog()}
+                  disabled={pathDialogBusy || !pathInput.trim()}
+                  className="nb-btn"
+                >
+                  {pathDialogBusy ? 'Saving…' : pathDialog.confirmLabel}
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -25,29 +25,33 @@ export function CodeEditor({ filePath, value, onChange, fontSize = 14, theme = '
   const handleMount = (editor, monacoInstance) => {
     editorRef.current = editor;
 
-    monacoInstance.editor.defineTheme('online-dark', {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [],
-      colors: {
-        'editor.background': '#07111d',
-        'editorLineNumber.foreground': '#51627a',
-        'editorLineNumber.activeForeground': '#c7d4e7'
-      }
-    });
-
-    monacoInstance.editor.defineTheme('online-light', {
+    monacoInstance.editor.defineTheme('minimal-white', {
       base: 'vs',
       inherit: true,
-      rules: [],
+      rules: [
+        { token: 'keyword', foreground: 'D9264D', fontStyle: 'bold' },
+        { token: 'string', foreground: '15803D' },
+        { token: 'comment', foreground: '888888', fontStyle: 'italic' },
+        { token: 'number', foreground: 'C2410C' },
+        { token: 'function', foreground: '1D4ED8' }
+      ],
       colors: {
-        'editor.background': '#f7fafc',
-        'editorLineNumber.foreground': '#76879c',
-        'editorLineNumber.activeForeground': '#102033'
+        'editor.background': '#FFFFFF',
+        'editor.foreground': '#111827',
+        'editorLineNumber.foreground': '#9CA3AF',
+        'editorLineNumber.activeForeground': '#000000',
+        'editorCursor.foreground': '#000000',
+        'editor.lineHighlightBackground': '#F9FAFB',
+        'editor.lineHighlightBorder': '#F3F4F6',
+        'editor.selectionBackground': '#FFD93D66',
+        'editor.inactiveSelectionBackground': '#FFD93D33',
+        'editorGutter.background': '#FFFFFF',
+        'editorBracketMatch.background': '#FFD93D40',
+        'editorBracketMatch.border': '#000000'
       }
     });
 
-    monacoInstance.editor.setTheme(theme === 'dark' ? 'online-dark' : 'online-light');
+    monacoInstance.editor.setTheme('minimal-white');
 
     if (monacoInstance.languages && monacoInstance.languages.registerCompletionItemProvider) {
       monacoInstance.languages.registerCompletionItemProvider('python', {
@@ -101,6 +105,7 @@ export function CodeEditor({ filePath, value, onChange, fontSize = 14, theme = '
   useEffect(() => {
     if (editorRef.current) {
       editorRef.current.updateOptions({ fontSize });
+      editorRef.current.layout();
     }
   }, [fontSize]);
 
@@ -108,16 +113,18 @@ export function CodeEditor({ filePath, value, onChange, fontSize = 14, theme = '
     <Editor
       key={filePath}
       height="100%"
-      theme={theme === 'dark' ? 'online-dark' : 'online-light'}
+      theme="minimal-white"
       language={language}
       defaultValue={value ?? ''}
       onMount={handleMount}
       options={{
         fontSize,
+        fontFamily: "'Space Mono', monospace, Consolas",
         minimap: { enabled: true },
         smoothScrolling: true,
         automaticLayout: true,
-        tabSize: 2,
+        mouseWheelZoom: true,
+        tabSize: 4,
         padding: { top: 12 },
         scrollBeyondLastLine: false,
         renderLineHighlight: 'all',

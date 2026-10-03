@@ -1,15 +1,9 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
-import { Trash2, Play, Square } from 'lucide-react';
 
 export const TerminalPanel = forwardRef(function TerminalPanel(
   {
     stdout,
     stderr,
-    command,
-    status,
-    executionStdin,
-    durationMs = 0,
-    exitCode = 0,
     stdin,
     onStdinChange,
     onRun,
@@ -17,7 +11,8 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
     projectId,
     activeFile,
     language,
-    onLiveStreamChange
+    onLiveStreamChange,
+    onRunningChange,
   },
   ref
 ) {
@@ -27,6 +22,11 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const socketRef = useRef(null);
+
+  const setRunningState = (val) => {
+    setIsRunning(val);
+    if (onRunningChange) onRunningChange(val);
+  };
 
   const appendChunk = (chunk, type = 'stdout') => {
     setHistory((prev) => {
@@ -40,14 +40,15 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
 
   const handleClear = () => {
     setHistory([]);
-    onStdinChange('');
+    if (onStdinChange) onStdinChange('');
     if (onLiveStreamChange) {
       onLiveStreamChange({ stdout: '', stderr: '' });
     }
   };
 
-  const startInteractiveExecution = () => {
-    if (!projectId || !activeFile) {
+  const startInteractiveExecution = (overrideFile = null) => {
+    const fileToRun = overrideFile || activeFile;
+    if (!projectId || !fileToRun) {
       if (onRun) onRun(stdin);
       return;
     }
@@ -79,12 +80,12 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       socketRef.current = ws;
 
       ws.onopen = () => {
-        setIsRunning(true);
+        setRunningState(true);
         const token = localStorage.getItem('skycode_token') || '';
         ws.send(JSON.stringify({
           type: 'start',
           projectId,
-          entryFile: activeFile,
+          entryFile: fileToRun,
           language,
           token
         }));
@@ -94,7 +95,8 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'started') {
-            setHistory((prev) => [...prev, { type: 'command', content: `$ python ${activeFile}\nINFO: Started server process\n` }]);
+            const displayCmd = msg.command || (fileToRun ? `python -u ${fileToRun}` : 'run');
+            setHistory((prev) => [...prev, { type: 'command', content: `$ ${displayCmd}` }]);
           } else if (msg.type === 'stdout') {
             appendChunk(msg.data, 'stdout');
             currentStdout += msg.data;
@@ -108,12 +110,11 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
               onLiveStreamChange({ stdout: currentStdout, stderr: currentStderr });
             }
           } else if (msg.type === 'exit') {
-            setIsRunning(false);
+            setRunningState(false);
             const seconds = (msg.durationMs / 1000).toFixed(2);
             setHistory((prev) => [
               ...prev,
-              { type: 'info', content: `\n[Done] exited with code=${msg.exitCode} in ${seconds}s` },
-              { type: 'prompt', content: 'skycode@workspace:~/my-app$ ' }
+              { type: 'info', content: `[Done] exited with code=${msg.exitCode} in ${seconds}s` },
             ]);
             ws.close();
             socketRef.current = null;
@@ -123,7 +124,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
             if (onLiveStreamChange) {
               onLiveStreamChange({ stdout: currentStdout, stderr: currentStderr });
             }
-            setIsRunning(false);
+            setRunningState(false);
           }
         } catch {
           // Ignore
@@ -131,15 +132,15 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       };
 
       ws.onerror = () => {
-        setIsRunning(false);
+        setRunningState(false);
         if (onRun) onRun(stdin);
       };
 
       ws.onclose = () => {
-        setIsRunning(false);
+        setRunningState(false);
       };
     } catch {
-      setIsRunning(false);
+      setRunningState(false);
       if (onRun) onRun(stdin);
     }
   };
@@ -148,11 +149,11 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: 'stop' }));
     }
-    setIsRunning(false);
+    setRunningState(false);
   };
 
   useImperativeHandle(ref, () => ({
-    startInteractiveExecution,
+    startInteractiveExecution: (file) => startInteractiveExecution(file),
     stopExecution,
     clearTerminal: handleClear
   }));
@@ -176,22 +177,26 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const rawValue = terminalInput;
-      const trimmed = rawValue.trim().toLowerCase();
+      const trimmed = rawValue.trim();
       setTerminalInput('');
 
-      if (trimmed === 'clear' || trimmed === 'cls') {
+      if (!trimmed) {
+        setHistory((prev) => [...prev, { type: 'prompt_line', prompt: 'skycode@workspace:~/my-app$ ', cmd: '' }]);
+        return;
+      }
+
+      const lower = trimmed.toLowerCase();
+      if (lower === 'clear' || lower === 'cls') {
         handleClear();
         return;
       }
 
-      appendChunk(`${rawValue}\n`, 'stdin');
-
-      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      if (isRunning && socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        appendChunk(`${rawValue}\n`, 'stdin');
         socketRef.current.send(JSON.stringify({ type: 'stdin', data: `${rawValue}\n` }));
       } else {
-        const nextStdin = stdin ? `${stdin}\n${rawValue}` : rawValue;
-        onStdinChange(nextStdin);
-        if (onRun) onRun(nextStdin);
+        setHistory((prev) => [...prev, { type: 'prompt_line', prompt: 'skycode@workspace:~/my-app$ ', cmd: rawValue }]);
+        startInteractiveExecution();
       }
     }
   };
@@ -202,135 +207,93 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
     }
   };
 
-  const activeBusy = busy || isRunning;
-
   return (
     <div
       onClick={handleContainerClick}
-      className="flex h-full flex-col rounded-xl border border-[#21262d] bg-[#090d16] font-mono text-xs md:text-sm text-[#c9d1d9] selection:bg-[#1f6feb]/40 cursor-text overflow-hidden shadow-inner"
+      className="flex h-full flex-col font-mono text-xs md:text-sm cursor-text overflow-hidden select-text"
+      style={{
+        background: '#000000',
+        color: '#FFFDF5',
+        fontFamily: "'Space Mono', monospace",
+      }}
     >
-      {/* Top Bar */}
-      <div className="flex items-center justify-between border-b border-[#21262d] bg-[#0d1322] px-3 py-1.5 select-none shrink-0 text-xs md:text-sm font-sans font-semibold">
-        <div className="flex items-center gap-2">
-          {activeBusy ? (
-            <span className="flex items-center gap-1.5 text-xs text-amber-400 font-sans font-bold">
-              <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-              Running
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5 text-xs text-[#8b949e] font-sans font-semibold">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              Ready
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {activeBusy ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                stopExecution();
-              }}
-              title="Stop Execution"
-              className="flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 px-3 py-1 text-xs font-sans font-bold transition-colors"
-            >
-              <Square size={12} className="fill-rose-400" />
-              <span>Stop</span>
-            </button>
-          ) : (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                startInteractiveExecution();
-              }}
-              disabled={activeBusy}
-              title="Run Code"
-              className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-[#4f8cff] to-[#7c3aed] text-white px-3 py-1 text-xs font-sans font-bold transition-opacity disabled:opacity-40 shadow"
-            >
-              <Play size={12} className="fill-white" />
-              <span>Run</span>
-            </button>
-          )}
-
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleClear();
-            }}
-            title="Clear Terminal"
-            className="flex items-center gap-1.5 rounded-lg border border-[#21262d] bg-[#161b22] hover:bg-[#21262d] text-[#8b949e] hover:text-white px-3 py-1 text-xs font-sans transition-colors"
-          >
-            <Trash2 size={13} />
-            <span>Clear</span>
-          </button>
-        </div>
-      </div>
-
       {/* Terminal Viewport */}
-      <div ref={containerRef} className="min-h-0 flex-1 overflow-auto p-3 font-mono text-xs md:text-sm leading-relaxed">
-        {history.length === 0 && !activeBusy && (
-          <div className="text-[#484f58] italic select-none mb-1 text-xs md:text-sm">
-            SkyCode Terminal v1.0. Click Run or type input below.
+      <div
+        ref={containerRef}
+        className="min-h-0 flex-1 overflow-auto p-3.5 font-mono text-xs md:text-sm leading-relaxed"
+      >
+        {history.length === 0 && !isRunning && (
+          <div className="select-none mb-3 text-xs font-mono" style={{ color: '#777777' }}>
+            <span style={{ color: '#FFD93D', fontWeight: 700 }}>SkyCode Neo-Terminal v1.0</span> · Type commands or click Run above to execute.
           </div>
         )}
 
         {history.map((entry, idx) => {
+          if (entry.type === 'prompt_line') {
+            return (
+              <div key={idx} className="flex items-center gap-1.5 leading-relaxed">
+                <span style={{ color: '#FFD93D', fontWeight: 800 }} className="select-none">{entry.prompt}</span>
+                <span style={{ color: '#FFFDF5' }}>{entry.cmd}</span>
+              </div>
+            );
+          }
           if (entry.type === 'command') {
             return (
-              <div key={idx} className="text-[#58a6ff] font-bold select-none">
+              <div key={idx} style={{ color: '#FFFDF5', fontWeight: 700 }} className="select-none leading-relaxed">
                 {entry.content}
               </div>
             );
           }
           if (entry.type === 'stdin') {
             return (
-              <span key={idx} className="text-[#3fb950] font-bold whitespace-pre-wrap">
+              <span key={idx} style={{ color: '#6BCB77', fontWeight: 700 }} className="whitespace-pre-wrap leading-relaxed">
                 {entry.content}
               </span>
             );
           }
           if (entry.type === 'info') {
             return (
-              <div key={idx} className="my-1 font-sans text-xs text-[#8b949e] select-none">
-                {entry.content}
-              </div>
-            );
-          }
-          if (entry.type === 'prompt') {
-            return (
-              <div key={idx} className="text-[#58a6ff] font-bold select-none">
+              <div key={idx} style={{ color: '#6BCB77', fontWeight: 700 }} className="my-1 font-mono text-xs select-none leading-relaxed">
                 {entry.content}
               </div>
             );
           }
           if (entry.type === 'stderr') {
             return (
-              <span key={idx} className="text-[#f85149] whitespace-pre-wrap">
+              <span key={idx} style={{ color: '#FF6B6B', fontWeight: 700 }} className="whitespace-pre-wrap leading-relaxed">
                 {entry.content}
               </span>
             );
           }
           return (
-            <span key={idx} className="text-[#c9d1d9] whitespace-pre-wrap">
+            <span key={idx} style={{ color: '#FFFDF5' }} className="whitespace-pre-wrap leading-relaxed">
               {entry.content}
             </span>
           );
         })}
 
-        <div className="inline-flex items-center gap-1 text-[#c9d1d9] w-full">
-          <textarea
+        {/* Active Prompt & Input Line */}
+        <div className="flex items-center gap-1 text-[#FFFDF5] w-full pt-1">
+          {isRunning ? (
+            <span style={{ color: '#6BCB77', fontWeight: 800 }} className="shrink-0 select-none animate-pulse">
+              &gt;&nbsp;
+            </span>
+          ) : (
+            <span style={{ color: '#FFD93D', fontWeight: 800 }} className="shrink-0 select-none">
+              skycode@workspace:~/my-app$&nbsp;
+            </span>
+          )}
+          <input
             ref={inputRef}
+            type="text"
             value={terminalInput}
             onChange={(e) => setTerminalInput(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={!isRunning && busy}
-            autoFocus
-            rows={1}
             spellCheck={false}
             autoComplete="off"
-            placeholder={history.length === 0 && !isRunning ? "skycode@workspace:~/my-app$ " : ""}
-            className="w-full border-none bg-transparent p-0 font-mono text-xs md:text-sm text-[#c9d1d9] placeholder:text-[#484f58] focus:outline-none focus:ring-0 caret-emerald-400 resize-none overflow-hidden"
+            placeholder={isRunning ? "Send standard input (stdin)..." : ""}
+            className="flex-1 border-none bg-transparent p-0 font-mono text-xs md:text-sm text-[#FFFDF5] placeholder:text-[#555555] focus:outline-none focus:ring-0 caret-[#FFD93D]"
           />
         </div>
       </div>

@@ -3,12 +3,54 @@ import { Link, useNavigate } from 'react-router-dom';
 import { createProjectRequest, deleteProjectRequest, listProjectsRequest } from '../api/projects';
 import { useAuth } from '../context/AuthContext';
 import { useThemeMode } from '../hooks/useThemeMode';
-import { Rocket, MoonStar, SunMedium, Plus, ExternalLink, Code2, Terminal, Server, Trash2, LogOut } from 'lucide-react';
+import {
+  Rocket, MoonStar, SunMedium, Plus, ExternalLink, Code2, Terminal,
+  Server, Trash2, LogOut, Star, Zap, Activity, Clock, ArrowRight,
+} from 'lucide-react';
+
+/* ── Language config ── */
+const LANG_CONFIG = {
+  python:     { label: 'Python',     bg: '#C4B5FD', icon: Code2 },
+  javascript: { label: 'JavaScript', bg: '#FFD93D', icon: Code2 },
+  c:          { label: 'C',          bg: '#93C5FD', icon: Terminal },
+  java:       { label: 'Java',       bg: '#FCA5A5', icon: Server },
+};
+
+const getLang = (lang) =>
+  LANG_CONFIG[lang?.toLowerCase()] ?? { label: lang ?? 'Code', bg: '#D1D5DB', icon: Code2 };
+
+const formatTimeAgo = (dateString) => {
+  if (!dateString) return 'recently';
+  const diff = Math.floor((Date.now() - new Date(dateString)) / 60000);
+  if (diff < 1)   return 'just now';
+  if (diff < 60)  return `${diff}m ago`;
+  if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+  return `${Math.floor(diff / 1440)}d ago`;
+};
+
+/* ── Stat card ── */
+function StatCard({ value, label, color = '#FFD93D', rotate = 0 }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center p-5 text-center"
+      style={{
+        background: color,
+        border: '3px solid #000',
+        boxShadow: '6px 6px 0px 0px #000',
+        transform: `rotate(${rotate}deg)`,
+      }}
+    >
+      <div className="text-3xl font-black leading-none text-black">{value}</div>
+      <div className="mt-1 text-xs font-black uppercase tracking-widest text-black/70">{label}</div>
+    </div>
+  );
+}
 
 export function DashboardPage() {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useThemeMode();
   const navigate = useNavigate();
+
   const [projects, setProjects] = useState([]);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -17,23 +59,14 @@ export function DashboardPage() {
   const [error, setError] = useState(null);
 
   const loadProjects = async () => {
-    try {
-      setProjects(await listProjectsRequest());
-    } catch (err) {
-      console.error(err);
-    }
+    try { setProjects(await listProjectsRequest()); }
+    catch (err) { console.error(err); }
   };
 
-  useEffect(() => {
-    void loadProjects();
-  }, []);
+  useEffect(() => { void loadProjects(); }, []);
 
   const createProject = async () => {
-    if (!name.trim()) {
-      setError('Project name is required');
-      return;
-    }
-
+    if (!name.trim()) { setError('Project name is required'); return; }
     setBusy(true);
     setError(null);
     try {
@@ -54,208 +87,396 @@ export function DashboardPage() {
     await loadProjects();
   };
 
-  const getLanguageBadge = (lang) => {
-    switch (lang?.toLowerCase()) {
-      case 'python':
-        return { bg: 'bg-blue-500/15 text-blue-400 border-blue-500/20', icon: <Code2 size={18} /> };
-      case 'c':
-        return { bg: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/20', icon: <Terminal size={18} /> };
-      case 'java':
-        return { bg: 'bg-amber-500/15 text-amber-400 border-amber-500/20', icon: <Server size={18} /> };
-      case 'javascript':
-        return { bg: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/20', icon: <Code2 size={18} /> };
-      default:
-        return { bg: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20', icon: <Code2 size={18} /> };
-    }
-  };
-
-  const formatTimeAgo = (dateString) => {
-    if (!dateString) return 'recently';
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMin = Math.floor((now - date) / 60000);
-    if (diffMin < 1) return 'just now';
-    if (diffMin < 60) return `Updated ${diffMin}m ago`;
-    const diffHours = Math.floor(diffMin / 60);
-    if (diffHours < 24) return `Updated ${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `Updated ${diffDays}d ago`;
-  };
+  const displayName = user?.displayName || 'Developer';
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
-      {/* Top Header */}
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="skycode-logo-glow flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f8cff] to-[#7c3aed] shrink-0">
-            <Rocket size={20} className="text-white drop-shadow-lg" />
+    <div
+      className="relative min-h-screen"
+      style={{ background: 'var(--color-canvas)' }}
+    >
+      {/* ── Background grid ── */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundSize: '40px 40px',
+          backgroundImage:
+            'linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px),' +
+            'linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px)',
+        }}
+      />
+
+      <div className="relative mx-auto max-w-6xl px-4 py-6 flex flex-col gap-6">
+
+        {/* ── Top Header ── */}
+        <header
+          className="flex flex-wrap items-center justify-between gap-4 px-5 py-4"
+          style={{
+            background: 'var(--color-panel)',
+            border: '3px solid var(--color-border)',
+            boxShadow: 'var(--shadow-md)',
+          }}
+        >
+          {/* Logo */}
+          <div className="flex items-center gap-3">
+            <div className="nb-logo-box" style={{ width: 44, height: 44 }}>
+              <Rocket size={22} strokeWidth={3} color="#000" />
+            </div>
+            <span className="text-2xl font-black uppercase tracking-tight" style={{ color: 'var(--color-text)' }}>
+              SkyCode
+            </span>
           </div>
-          <span className="skycode-gradient-text text-xl md:text-2xl font-bold tracking-wide">SkyCode</span>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            <button
+              id="dashboard-theme-btn"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="nb-btn-icon"
+              title="Toggle theme"
+              aria-label="Toggle theme"
+            >
+              {theme === 'dark'
+                ? <SunMedium size={17} strokeWidth={3} />
+                : <MoonStar size={17} strokeWidth={3} />}
+            </button>
+
+            <button
+              id="dashboard-logout-btn"
+              onClick={logout}
+              className="nb-btn-ghost"
+              title="Sign out"
+            >
+              <LogOut size={15} strokeWidth={3} />
+              Sign Out
+            </button>
+          </div>
+        </header>
+
+        {/* ── Hero greeting ── */}
+        <div
+          className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-8 overflow-hidden"
+          style={{
+            background: '#000',
+            border: '3px solid #000',
+            boxShadow: 'var(--shadow-lg)',
+          }}
+        >
+          {/* Dot pattern overlay */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)',
+              backgroundSize: '18px 18px',
+              opacity: 0.04,
+            }}
+          />
+
+          <div className="relative">
+            <div
+              className="mb-3 inline-flex items-center gap-2 px-3 py-1"
+              style={{ background: '#FFD93D', border: '2px solid #FFD93D' }}
+            >
+              <Zap size={12} strokeWidth={3} fill="#000" color="#000" />
+              <span className="text-xs font-black uppercase tracking-widest text-black">
+                Welcome back
+              </span>
+            </div>
+            <h1
+              className="text-4xl sm:text-5xl font-black uppercase leading-none"
+              style={{ color: '#FFFDF5', letterSpacing: '-0.03em' }}
+            >
+              {displayName}
+            </h1>
+            <p className="mt-2 font-bold text-sm uppercase tracking-widest" style={{ color: '#aaa' }}>
+              Your projects · Your code · Anywhere
+            </p>
+          </div>
+
+          {/* Decorative star */}
+          <Star
+            size={48}
+            strokeWidth={2.5}
+            fill="#FFD93D"
+            color="#FFD93D"
+            className="nb-spin-slow hidden sm:block"
+            style={{ flexShrink: 0 }}
+          />
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] transition hover:bg-white/10"
-            title="Toggle theme"
-          >
-            {theme === 'dark' ? <MoonStar size={18} /> : <SunMedium size={18} />}
-          </button>
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-2 text-xs md:text-sm font-semibold text-[var(--color-muted)] hover:text-[var(--color-text)]"
-            title="Sign out"
-          >
-            <LogOut size={16} />
-            <span>Sign out</span>
-          </button>
+        {/* ── Stats row ── */}
+        <div className="grid grid-cols-3 gap-4 sm:gap-6">
+          <StatCard value={projects.length} label="Projects" color="#FFD93D" rotate={-1} />
+          <StatCard value="28" label="Runs" color="#C4B5FD" rotate={0.5} />
+          <StatCard value="99.9%" label="Uptime" color="#6BCB77" rotate={-0.5} />
         </div>
-      </header>
 
-      {/* Greeting Title */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[var(--color-text)]">
-          Welcome back, {user?.displayName || 'Developer'} 👋
-        </h1>
-        <p className="mt-1 text-xs md:text-sm text-[var(--color-muted)] font-medium">
-          Your projects. Your code. Anywhere.
-        </p>
-      </div>
+        {/* ── Two-column layout ── */}
+        <div className="grid gap-6 md:grid-cols-2">
 
-      {/* Two Column Layout */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Left Column: Create new project */}
-        <div className="glass-panel shell-shadow flex flex-col justify-between rounded-3xl p-6 border border-[var(--color-border)]">
-          <div>
-            <h2 className="text-base md:text-lg font-bold tracking-wide text-[var(--color-text)]">Create new project</h2>
-            
-            <div className="mt-4 space-y-4">
+          {/* ── Create project panel ── */}
+          <div
+            className="flex flex-col"
+            style={{
+              background: 'var(--color-panel)',
+              border: '3px solid var(--color-border)',
+              boxShadow: 'var(--shadow-md)',
+            }}
+          >
+            {/* Panel header */}
+            <div
+              className="flex items-center gap-3 px-5 py-4"
+              style={{
+                background: '#FF6B6B',
+                borderBottom: '3px solid var(--color-border)',
+              }}
+            >
+              <Plus size={20} strokeWidth={3} color="#fff" />
+              <span className="font-black text-sm uppercase tracking-widest text-white">
+                New Project
+              </span>
+            </div>
+
+            <div className="flex flex-1 flex-col gap-4 p-5">
+              {/* Name */}
               <div>
-                <label className="mb-1.5 block text-xs md:text-sm font-semibold text-[var(--color-muted)]">Project name</label>
+                <label
+                  htmlFor="proj-name"
+                  className="nb-label mb-2 block"
+                >
+                  Project Name *
+                </label>
                 <input
+                  id="proj-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="my-awesome-project"
-                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-xs md:text-sm text-[var(--color-text)] outline-none transition focus:border-[var(--color-accent)] placeholder:text-[var(--color-muted)]/60"
+                  className="nb-input"
                 />
               </div>
 
+              {/* Description */}
               <div>
-                <label className="mb-1.5 block text-xs md:text-sm font-semibold text-[var(--color-muted)]">Description</label>
+                <label htmlFor="proj-desc" className="nb-label mb-2 block">
+                  Description
+                </label>
                 <input
+                  id="proj-desc"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="What are you building?"
-                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-xs md:text-sm text-[var(--color-text)] outline-none transition focus:border-[var(--color-accent)] placeholder:text-[var(--color-muted)]/60"
+                  className="nb-input"
                 />
               </div>
 
+              {/* Language */}
               <div>
-                <label className="mb-1.5 block text-xs md:text-sm font-semibold text-[var(--color-muted)]">Language</label>
+                <label htmlFor="proj-lang" className="nb-label mb-2 block">
+                  Language
+                </label>
                 <div className="relative">
                   <select
+                    id="proj-lang"
                     value={language}
                     onChange={(e) => setLanguage(e.target.value)}
-                    className="w-full appearance-none rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-xs md:text-sm text-[var(--color-text)] outline-none transition focus:border-[var(--color-accent)] cursor-pointer"
+                    className="nb-select"
                   >
-                    <option value="python" className="bg-[var(--color-canvas)] text-[var(--color-text)]">Python</option>
-                    <option value="javascript" className="bg-[var(--color-canvas)] text-[var(--color-text)]">JavaScript</option>
-                    <option value="c" className="bg-[var(--color-canvas)] text-[var(--color-text)]">C Language</option>
-                    <option value="java" className="bg-[var(--color-canvas)] text-[var(--color-text)]">Java</option>
+                    <option value="python">Python</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="c">C Language</option>
+                    <option value="java">Java</option>
                   </select>
-                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 flex h-2.5 w-2.5 rounded-full bg-blue-400"></span>
+                  {/* Custom arrow */}
+                  <span
+                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-black text-xs"
+                    style={{ color: 'var(--color-text)' }}
+                  >
+                    ▼
+                  </span>
                 </div>
               </div>
 
               {error && (
-                <div className="rounded-xl border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/10 p-3 text-xs md:text-sm text-[var(--color-danger)] font-medium">
-                  {error}
+                <div className="nb-error-box nb-in">
+                  ⚠ {error}
                 </div>
               )}
+
+              <button
+                id="create-project-btn"
+                onClick={() => void createProject()}
+                disabled={busy || !name.trim()}
+                className="nb-btn w-full mt-auto"
+                style={{ height: 52 }}
+              >
+                <Plus size={18} strokeWidth={3} />
+                {busy ? 'Creating…' : 'Create Project'}
+                <ArrowRight size={16} strokeWidth={3} />
+              </button>
             </div>
           </div>
 
-          <button
-            onClick={() => void createProject()}
-            disabled={busy || !name.trim()}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#4f8cff] to-[#7c3aed] py-3 text-xs md:text-sm font-bold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50"
+          {/* ── Recent projects panel ── */}
+          <div
+            className="flex flex-col"
+            style={{
+              background: 'var(--color-panel)',
+              border: '3px solid var(--color-border)',
+              boxShadow: 'var(--shadow-md)',
+            }}
           >
-            <Plus size={18} />
-            {busy ? 'Creating...' : 'Create Project'}
-          </button>
-        </div>
-
-        {/* Right Column: Recent projects */}
-        <div className="glass-panel shell-shadow flex flex-col rounded-3xl p-6 border border-[var(--color-border)]">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base md:text-lg font-bold tracking-wide text-[var(--color-text)]">Recent projects</h2>
-            <span className="text-xs md:text-sm text-[var(--color-accent)] font-semibold hover:underline cursor-pointer">View all</span>
-          </div>
-
-          <div className="mt-4 flex-1 space-y-3 overflow-y-auto max-h-[300px] pr-1">
-            {projects.length === 0 ? (
-              <div className="flex h-40 flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--color-border)] p-4 text-center text-xs md:text-sm text-[var(--color-muted)] font-medium">
-                No projects yet. Create your first project on the left!
+            {/* Panel header */}
+            <div
+              className="flex items-center justify-between px-5 py-4"
+              style={{
+                background: '#FFD93D',
+                borderBottom: '3px solid var(--color-border)',
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <Activity size={20} strokeWidth={3} color="#000" />
+                <span className="font-black text-sm uppercase tracking-widest text-black">
+                  Recent Projects
+                </span>
               </div>
-            ) : (
-              projects.map((proj) => {
-                const badge = getLanguageBadge(proj.language);
-                return (
-                  <Link
-                    key={proj._id}
-                    to={`/projects/${proj._id}`}
-                    className="group flex items-center justify-between rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 transition hover:border-[var(--color-accent)]/50 hover:bg-white/5"
-                  >
-                    <div className="flex items-center gap-3.5">
-                      <div className={`flex h-11 w-11 items-center justify-center rounded-xl border ${badge.bg} shrink-0`}>
-                        {badge.icon}
-                      </div>
-                      <div>
-                        <div className="text-xs md:text-sm font-bold text-[var(--color-text)] group-hover:text-[var(--color-accent)]">
-                          {proj.name}
-                        </div>
-                        <div className="text-xs text-[var(--color-muted)] mt-0.5 font-medium">
-                          <span className="capitalize">{proj.language}</span>
-                          <span className="mx-1.5">•</span>
-                          <span>{formatTimeAgo(proj.updatedAt)}</span>
-                        </div>
-                      </div>
-                    </div>
+              <span
+                className="font-black text-xs uppercase tracking-wider text-black underline cursor-pointer"
+              >
+                View all
+              </span>
+            </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => void removeProject(proj._id, e)}
-                        className="rounded-lg p-2 text-[var(--color-muted)] opacity-0 transition group-hover:opacity-100 hover:bg-rose-500/20 hover:text-rose-400"
-                        title="Delete project"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                      <ExternalLink size={16} className="text-[var(--color-muted)] transition group-hover:text-[var(--color-text)]" />
-                    </div>
-                  </Link>
-                );
-              })
-            )}
+            <div className="flex-1 overflow-y-auto max-h-[400px]">
+              {projects.length === 0 ? (
+                <div className="flex h-48 flex-col items-center justify-center gap-3 p-6 text-center">
+                  <div
+                    style={{
+                      border: '3px dashed var(--color-border)',
+                      padding: '24px 32px',
+                      boxShadow: 'none',
+                    }}
+                  >
+                    <Code2 size={32} strokeWidth={2} style={{ color: 'var(--color-muted)', margin: '0 auto 8px' }} />
+                    <p className="font-black text-sm uppercase tracking-wide" style={{ color: 'var(--color-muted)' }}>
+                      No projects yet.
+                    </p>
+                    <p className="font-bold text-xs mt-1" style={{ color: 'var(--color-muted)' }}>
+                      Create your first one →
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <ul className="divide-y-2 divide-black">
+                  {projects.map((proj) => {
+                    const lang = getLang(proj.language);
+                    const Icon = lang.icon;
+                    return (
+                      <li key={proj._id}>
+                        <Link
+                          to={`/projects/${proj._id}`}
+                          className="group flex items-center justify-between px-5 py-4 transition-colors duration-100"
+                          style={{ background: 'var(--color-panel)' }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = '#FFFBEC')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-panel)')}
+                        >
+                          <div className="flex items-center gap-3">
+                            {/* Lang badge */}
+                            <div
+                              style={{
+                                width: 42, height: 42,
+                                background: lang.bg,
+                                border: '2px solid #000',
+                                boxShadow: '3px 3px 0px 0px #000',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <Icon size={18} strokeWidth={3} color="#000" />
+                            </div>
+                            <div>
+                              <div className="font-black text-sm uppercase" style={{ color: 'var(--color-text)' }}>
+                                {proj.name}
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span
+                                  className="nb-badge"
+                                  style={{ background: lang.bg, fontSize: '0.6rem' }}
+                                >
+                                  {lang.label}
+                                </span>
+                                <span
+                                  className="flex items-center gap-1 text-xs font-bold uppercase"
+                                  style={{ color: 'var(--color-muted)' }}
+                                >
+                                  <Clock size={10} strokeWidth={3} />
+                                  {formatTimeAgo(proj.updatedAt)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              id={`delete-project-${proj._id}`}
+                              onClick={(e) => void removeProject(proj._id, e)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              style={{
+                                background: '#FF6B6B',
+                                border: '2px solid #000',
+                                boxShadow: '3px 3px 0px 0px #000',
+                                padding: 6, cursor: 'pointer',
+                                color: '#fff',
+                              }}
+                              title="Delete project"
+                              aria-label="Delete project"
+                            >
+                              <Trash2 size={14} strokeWidth={3} />
+                            </button>
+                            <ExternalLink
+                              size={16}
+                              strokeWidth={3}
+                              style={{ color: 'var(--color-muted)' }}
+                            />
+                          </div>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Bottom Stats Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="glass-panel shell-shadow rounded-2xl p-4 md:p-5 border border-[var(--color-border)] text-center">
-          <div className="text-2xl md:text-3xl font-bold text-[var(--color-text)]">{projects.length}</div>
-          <div className="text-xs md:text-sm text-[var(--color-muted)] font-semibold mt-1">Projects</div>
+        {/* ── Bottom CTA strip ── */}
+        <div
+          className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-5"
+          style={{
+            background: '#C4B5FD',
+            border: '3px solid #000',
+            boxShadow: 'var(--shadow-md)',
+          }}
+        >
+          <div>
+            <div className="font-black text-lg uppercase tracking-tight text-black">
+              Ready to build something?
+            </div>
+            <div className="font-bold text-sm text-black/60 uppercase tracking-wide">
+              Code, run, and deploy in seconds.
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Star size={20} strokeWidth={2.5} fill="#000" color="#000" />
+            <button
+              onClick={() => document.getElementById('proj-name')?.focus()}
+              className="nb-btn"
+              style={{ background: '#000', color: '#FFD93D' }}
+            >
+              Start Coding
+              <ArrowRight size={16} strokeWidth={3} />
+            </button>
+          </div>
         </div>
 
-        <div className="glass-panel shell-shadow rounded-2xl p-4 md:p-5 border border-[var(--color-border)] text-center">
-          <div className="text-2xl md:text-3xl font-bold text-[var(--color-text)]">28</div>
-          <div className="text-xs md:text-sm text-[var(--color-muted)] font-semibold mt-1">Runs this week</div>
-        </div>
-
-        <div className="glass-panel shell-shadow rounded-2xl p-4 md:p-5 border border-[var(--color-border)] text-center">
-          <div className="text-2xl md:text-3xl font-bold text-emerald-400">99.9%</div>
-          <div className="text-xs md:text-sm text-[var(--color-muted)] font-semibold mt-1">Uptime</div>
-        </div>
       </div>
     </div>
   );
