@@ -1,6 +1,7 @@
+import { Link } from 'react-router-dom';
 import { useThemeMode } from '../../hooks/useThemeMode';
 import { useAuth } from '../../context/AuthContext';
-import { MoonStar, SunMedium, Rocket, Bell, Zap } from 'lucide-react';
+import { MoonStar, SunMedium, Zap } from 'lucide-react';
 
 export function AppShell({ children, projectName }) {
   const { theme, setTheme } = useThemeMode();
@@ -22,12 +23,16 @@ export function AppShell({ children, projectName }) {
         }}
       >
         {/* Left: Logo */}
-        <div className="flex items-center gap-3">
+        <Link to="/" className="flex items-center gap-3 no-underline group cursor-pointer" title="SkyCode Dashboard">
           <div
             className="nb-logo-box"
             style={{ width: 42, height: 42 }}
           >
-            <Rocket size={22} strokeWidth={3} color="#000" />
+            <img
+              src="/logo-icon.png"
+              alt="SkyCode"
+              className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+            />
           </div>
           <div className="flex flex-col leading-none">
             <span
@@ -38,7 +43,7 @@ export function AppShell({ children, projectName }) {
             </span>
             <span className="nb-label" style={{ marginTop: 2 }}>Online IDE</span>
           </div>
-        </div>
+        </Link>
 
         {/* Center: Active Project */}
         {projectName && (
@@ -59,11 +64,6 @@ export function AppShell({ children, projectName }) {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
-          {/* Notifications */}
-          <button className="nb-btn-icon" title="Notifications" aria-label="Notifications">
-            <Bell size={17} strokeWidth={3} />
-          </button>
-
           {/* Theme toggle */}
           <button
             id="header-theme-toggle"

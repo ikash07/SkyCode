@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Rocket, Mail, User, Lock, Eye, EyeOff, ArrowRight, Github, Star, Zap } from 'lucide-react';
+import { Mail, User, Lock, Eye, EyeOff, ArrowRight, Github, Star, Zap } from 'lucide-react';
 
 /* ── Decorative floating star ── */
-function FloatingStar({ style, size = 24, rotate = 0 }) {
+function FloatingStar({ style, size = 24, rotate = 0, className = '' }) {
   return (
     <Star
       size={size}
       strokeWidth={3}
       fill="#FFD93D"
       color="#000"
+      className={`pointer-events-none select-none ${className}`}
       style={{
         position: 'absolute',
         transform: `rotate(${rotate}deg)`,
@@ -55,7 +56,7 @@ export function AuthPage() {
 
   return (
     <div
-      className="relative flex min-h-screen flex-col items-center justify-center p-4 sm:p-8 overflow-hidden"
+      className="relative flex min-h-[100dvh] w-full flex-col items-center justify-center px-3 py-14 sm:px-6 sm:py-16 overflow-x-hidden overflow-y-auto"
       style={{ background: 'var(--color-canvas)' }}
     >
       {/* ── Background dot grid ── */}
@@ -68,15 +69,15 @@ export function AuthPage() {
         }}
       />
 
-      {/* ── Decorative floating stars ── */}
-      <FloatingStar style={{ top: '8%',  left: '6%' }}  size={28} rotate={15} />
-      <FloatingStar style={{ top: '12%', right: '8%' }} size={20} rotate={-8} />
-      <FloatingStar style={{ bottom: '10%', left: '10%' }} size={22} rotate={30} />
-      <FloatingStar style={{ bottom: '14%', right: '6%' }} size={32} rotate={-20} />
+      {/* ── Decorative floating stars (hidden on small devices for clarity) ── */}
+      <FloatingStar className="hidden md:block" style={{ top: '8%',  left: '6%' }}  size={28} rotate={15} />
+      <FloatingStar className="hidden md:block" style={{ top: '12%', right: '8%' }} size={20} rotate={-8} />
+      <FloatingStar className="hidden md:block" style={{ bottom: '10%', left: '10%' }} size={22} rotate={30} />
+      <FloatingStar className="hidden md:block" style={{ bottom: '14%', right: '6%' }} size={32} rotate={-20} />
 
       {/* ── Seamless Infinite Scroll top strip ── */}
       <div
-        className="absolute top-0 inset-x-0 overflow-hidden py-1.5 border-b-2 border-black select-none z-10"
+        className="nb-marquee-container fixed top-0 inset-x-0 py-1.5 border-b-2 border-black select-none z-30"
         style={{
           background: '#000',
           color: '#FFD93D',
@@ -90,16 +91,30 @@ export function AuthPage() {
           {/* Track 1 */}
           <div className="flex items-center shrink-0">
             {Array.from({ length: 18 }).map((_, i) => (
-              <span key={`t1-${i}`} className="inline-flex items-center gap-2 mx-5">
-                <Zap size={11} strokeWidth={3} fill="#FFD93D" /> SKYCODE IDE
+              <span key={`t1-${i}`} className="inline-flex items-center gap-2 mx-4 sm:mx-5 shrink-0">
+                <img
+                  src="/logo-icon.png"
+                  alt=""
+                  className="w-3.5 h-3.5 object-cover rounded-xs inline-block shrink-0"
+                  loading="eager"
+                  decoding="async"
+                />
+                SKYCODE IDE
               </span>
             ))}
           </div>
           {/* Track 2 (clone for gapless infinite scroll) */}
           <div className="flex items-center shrink-0" aria-hidden="true">
             {Array.from({ length: 18 }).map((_, i) => (
-              <span key={`t2-${i}`} className="inline-flex items-center gap-2 mx-5">
-                <Zap size={11} strokeWidth={3} fill="#FFD93D" /> SKYCODE IDE
+              <span key={`t2-${i}`} className="inline-flex items-center gap-2 mx-4 sm:mx-5 shrink-0">
+                <img
+                  src="/logo-icon.png"
+                  alt=""
+                  className="w-3.5 h-3.5 object-cover rounded-xs inline-block shrink-0"
+                  loading="eager"
+                  decoding="async"
+                />
+                SKYCODE IDE
               </span>
             ))}
           </div>
@@ -108,36 +123,43 @@ export function AuthPage() {
 
       {/* ── Auth card ── */}
       <div
-        className="nb-in relative w-full max-w-[440px] p-0 mt-8"
+        className="nb-in relative w-full max-w-[420px] mx-auto my-auto p-0 z-10"
         style={{
           border: '3px solid #000',
-          boxShadow: '8px 8px 0px 0px #000',
+          boxShadow: 'clamp(5px, 2vw, 8px) clamp(5px, 2vw, 8px) 0px 0px #000',
           background: 'var(--color-panel)',
         }}
       >
         {/* Card header strip */}
         <div
-          className="flex items-center justify-between px-6 py-4"
+          className="flex items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4"
           style={{
             background: '#FFD93D',
             borderBottom: '3px solid #000',
           }}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div
+              className="shrink-0"
               style={{
-                width: 40, height: 40,
-                background: '#000',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 40,
+                height: 40,
+                background: '#280736',
+                border: '2px solid #000',
+                boxShadow: '2px 2px 0px 0px #000',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
               }}
             >
-              <Rocket size={20} strokeWidth={3} color="#FFD93D" />
+              <img src="/logo-icon.png" alt="SkyCode" className="w-full h-full object-cover" />
             </div>
-            <div>
-              <div className="font-black text-xl uppercase tracking-tight text-black leading-none">
+            <div className="min-w-0">
+              <div className="font-black text-lg sm:text-xl uppercase tracking-tight text-black leading-none truncate">
                 SkyCode
               </div>
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/60">
+              <div className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-black/60 truncate mt-0.5">
                 Online IDE
               </div>
             </div>
@@ -145,25 +167,26 @@ export function AuthPage() {
 
           {/* Mode badge */}
           <div
+            className="shrink-0"
             style={{
               background: '#FF6B6B',
               border: '2px solid #000',
-              boxShadow: '3px 3px 0px 0px #000',
-              padding: '4px 12px',
+              boxShadow: '2px 2px 0px 0px #000',
+              padding: '3px 10px',
               transform: 'rotate(-2deg)',
             }}
           >
-            <span className="text-xs font-black uppercase tracking-widest text-white">
+            <span className="text-xs font-black uppercase tracking-wider text-white">
               {mode === 'login' ? 'Sign In' : 'Sign Up'}
             </span>
           </div>
         </div>
 
         {/* Card body */}
-        <div className="px-6 py-6">
+        <div className="px-4 py-5 sm:px-6 sm:py-6">
           {/* Tab switcher */}
           <div
-            className="flex mb-6"
+            className="flex mb-5 sm:mb-6"
             style={{ border: '3px solid #000' }}
           >
             {['login', 'register'].map((m) => (
@@ -339,15 +362,15 @@ export function AuthPage() {
 
       {/* Bottom tag */}
       <div
-        className="mt-6 px-4 py-2"
+        className="mt-4 sm:mt-6 px-3.5 py-1.5 sm:px-4 sm:py-2 select-none z-10"
         style={{
           border: '2px solid #000',
-          boxShadow: '4px 4px 0px 0px #000',
+          boxShadow: '3px 3px 0px 0px #000',
           background: 'var(--color-panel)',
           transform: 'rotate(-1deg)',
         }}
       >
-        <span className="text-xs font-black uppercase tracking-widest" style={{ color: 'var(--color-muted)' }}>
+        <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest" style={{ color: 'var(--color-muted)' }}>
           Code · Create · Deploy
         </span>
       </div>

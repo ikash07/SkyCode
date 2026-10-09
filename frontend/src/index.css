@@ -299,7 +299,7 @@ body {
 
 /* ── Logo box ── */
 .nb-logo-box {
-  background: var(--color-secondary);
+  background: #280736;
   border: 3px solid var(--color-border);
   border-radius: 0;
   box-shadow: var(--shadow-sm);
@@ -307,6 +307,20 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.nb-logo-box:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-md);
+}
+
+.nb-logo-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 /* ── Error box ── */
@@ -342,17 +356,32 @@ body {
 @keyframes nb-marquee-scroll {
   0% {
     transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
   }
   100% {
     transform: translate3d(-50%, 0, 0);
+    -webkit-transform: translate3d(-50%, 0, 0);
   }
+}
+
+.nb-marquee-container {
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  contain: paint layout;
 }
 
 .nb-marquee-track {
   display: flex;
   width: max-content;
   will-change: transform;
-  animation: nb-marquee-scroll var(--marquee-speed, 35s) linear infinite;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-perspective: 1000px;
+  perspective: 1000px;
+  animation: nb-marquee-scroll var(--marquee-speed, 26s) linear infinite;
 }
 
 .nb-marquee-track:hover {
@@ -385,6 +414,11 @@ body {
 /* Reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   .nb-spin-slow,
-  .nb-in,
-  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  .nb-in {
+    animation: none !important;
+    transition: none !important;
+  }
+  .nb-marquee-track {
+    animation: none !important;
+  }
 }

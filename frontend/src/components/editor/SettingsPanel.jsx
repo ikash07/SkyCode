@@ -98,6 +98,28 @@ export function SettingsPanel({ project, onAutoSaveChange, onFontSizeChange }) {
             {project?.language ?? 'python'}
           </span>
         </div>
+
+        {/* Brand footer */}
+        <div
+          className="mt-4 p-4 text-center flex flex-col items-center"
+          style={{
+            background: '#280736',
+            border: '2px solid var(--color-border)',
+            boxShadow: '3px 3px 0px 0px var(--color-border)',
+          }}
+        >
+          <img
+            src="/logo-card.png"
+            alt="SkyCode"
+            className="w-28 object-contain mb-2"
+          />
+          <div className="text-xs font-black uppercase tracking-wider text-white">
+            SkyCode Online IDE
+          </div>
+          <div className="text-[10px] font-black uppercase tracking-widest text-[#FFD93D] mt-0.5">
+            Docker Cloud Engine
+          </div>
+        </div>
       </div>
     </div>
   );

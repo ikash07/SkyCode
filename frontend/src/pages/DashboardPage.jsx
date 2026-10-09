@@ -4,7 +4,7 @@ import { createProjectRequest, deleteProjectRequest, listProjectsRequest } from 
 import { useAuth } from '../context/AuthContext';
 import { useThemeMode } from '../hooks/useThemeMode';
 import {
-  Rocket, MoonStar, SunMedium, Plus, ExternalLink, Code2, Terminal,
+  MoonStar, SunMedium, Plus, ExternalLink, Code2, Terminal,
   Server, Trash2, LogOut, Star, Zap, Activity, Clock, ArrowRight,
 } from 'lucide-react';
 
@@ -117,14 +117,21 @@ export function DashboardPage() {
           }}
         >
           {/* Logo */}
-          <div className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-3 no-underline group cursor-pointer" title="SkyCode Dashboard">
             <div className="nb-logo-box" style={{ width: 44, height: 44 }}>
-              <Rocket size={22} strokeWidth={3} color="#000" />
+              <img
+                src="/logo-icon.png"
+                alt="SkyCode"
+                className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+              />
             </div>
-            <span className="text-2xl font-black uppercase tracking-tight" style={{ color: 'var(--color-text)' }}>
-              SkyCode
-            </span>
-          </div>
+            <div className="flex flex-col leading-none">
+              <span className="text-2xl font-black uppercase tracking-tight" style={{ color: 'var(--color-text)', letterSpacing: '-0.02em' }}>
+                SkyCode
+              </span>
+              <span className="nb-label" style={{ marginTop: 2 }}>Online IDE</span>
+            </div>
+          </Link>
 
           {/* Actions */}
           <div className="flex items-center gap-2">
@@ -192,15 +199,31 @@ export function DashboardPage() {
             </p>
           </div>
 
-          {/* Decorative star */}
-          <Star
-            size={48}
-            strokeWidth={2.5}
-            fill="#FFD93D"
-            color="#FFD93D"
-            className="nb-spin-slow hidden sm:block"
-            style={{ flexShrink: 0 }}
-          />
+          {/* Brand badge & decorative star */}
+          <div className="flex items-center gap-4 z-10 shrink-0">
+            <div
+              className="hidden md:flex items-center gap-3 px-3.5 py-2"
+              style={{
+                background: '#280736',
+                border: '2px solid #FFD93D',
+                boxShadow: '4px 4px 0px 0px #FFD93D',
+              }}
+            >
+              <img src="/logo-icon.png" alt="SkyCode" className="w-9 h-9 object-cover" />
+              <div>
+                <div className="text-xs font-black uppercase tracking-wider text-white">SkyCode IDE</div>
+                <div className="text-[10px] font-black text-[#FFD93D] uppercase tracking-widest">Online Workspace</div>
+              </div>
+            </div>
+            <Star
+              size={44}
+              strokeWidth={2.5}
+              fill="#FFD93D"
+              color="#FFD93D"
+              className="nb-spin-slow hidden sm:block"
+              style={{ flexShrink: 0 }}
+            />
+          </div>
         </div>
 
         {/* ── Stats row ── */}
@@ -355,8 +378,17 @@ export function DashboardPage() {
                       boxShadow: 'none',
                     }}
                   >
-                    <Code2 size={32} strokeWidth={2} style={{ color: 'var(--color-muted)', margin: '0 auto 8px' }} />
-                    <p className="font-black text-sm uppercase tracking-wide" style={{ color: 'var(--color-muted)' }}>
+                    <div
+                      className="mx-auto mb-2 flex h-12 w-12 items-center justify-center overflow-hidden"
+                      style={{
+                        background: '#280736',
+                        border: '2px solid #000',
+                        boxShadow: '3px 3px 0px 0px #000',
+                      }}
+                    >
+                      <img src="/logo-icon.png" alt="SkyCode" className="h-full w-full object-cover" />
+                    </div>
+                    <p className="font-black text-sm uppercase tracking-wide" style={{ color: 'var(--color-text)' }}>
                       No projects yet.
                     </p>
                     <p className="font-bold text-xs mt-1" style={{ color: 'var(--color-muted)' }}>

@@ -24,7 +24,7 @@ import {
 } from '../api/projects';
 import { useThemeMode } from '../hooks/useThemeMode';
 import { detectLanguageFromPath, guessEntryFile } from '../utils/language';
-import { Play, Rocket, Terminal, Cloud } from 'lucide-react';
+import { Play, Terminal, Cloud } from 'lucide-react';
 
 export function WorkspacePage() {
   const { projectId } = useParams();
@@ -98,9 +98,11 @@ export function WorkspacePage() {
   }, [terminalHeight]);
 
   const autosaveTimer = useRef(null);
+  const [selectedFolder, setSelectedFolder] = useState(null);
   const [pathDialog, setPathDialog] = useState(null);
   const [pathInput, setPathInput] = useState('');
   const [pathDialogBusy, setPathDialogBusy] = useState(false);
+  const [pathDialogSaveSelectedFile, setPathDialogSaveSelectedFile] = useState(true);
 
   const activeFileRef = useRef(activeFile);
   activeFileRef.current = activeFile;
@@ -261,35 +263,75 @@ export function WorkspacePage() {
     }
   };
 
-  const createFile = async () => {
+  const createFile = async (parentFolder = null) => {
     if (!projectId) return;
+    const baseFolder = parentFolder || selectedFolder || '';
     setPathDialog({
       mode: 'create-file',
       title: 'Create File',
       confirmLabel: 'Create file',
-      initialValue: '',
+      initialValue: baseFolder ? `${baseFolder}/` : '',
       onConfirm: async (value) => {
-        await saveFileRequest(projectId, value, '');
+        const filePath = value.trim();
+        if (!filePath) return;
+        await saveFileRequest(projectId, filePath, '');
         await loadWorkspace();
-        await openFile(value);
+        await openFile(filePath);
       }
     });
-    setPathInput('');
+    setPathInput(baseFolder ? `${baseFolder}/` : '');
   };
 
-  const createFolder = async () => {
+  const createFolder = async (parentFolder = null) => {
     if (!projectId) return;
+    const currentActive = activeFileRef.current;
+    const activeFileName = currentActive ? currentActive.split('/').pop() : null;
+    const baseFolder = parentFolder || selectedFolder || '';
+
+    // If an active file is open, default to moving it inside the new folder
+    setPathDialogSaveSelectedFile(Boolean(currentActive));
     setPathDialog({
       mode: 'create-folder',
       title: 'Create Folder',
       confirmLabel: 'Create folder',
-      initialValue: '',
-      onConfirm: async (value) => {
-        await createFolderRequest(projectId, value);
+      initialValue: baseFolder ? `${baseFolder}/` : '',
+      selectedFile: currentActive,
+      selectedFileName: activeFileName,
+      onConfirm: async (folderNameInput, saveSelectedInside = true) => {
+        const folderPath = folderNameInput.trim().replace(/\/+$/, '');
+        if (!folderPath) return;
+
+        // 1. Create the new folder on backend
+        await createFolderRequest(projectId, folderPath);
+
+        // 2. If user had an active file and chose to save inside:
+        if (currentActive && saveSelectedInside) {
+          // If active file was dirty, save content first
+          if (openFilesRef.current.some((f) => f.path === currentActive && f.dirty)) {
+            await saveFile(currentActive, true);
+          }
+
+          const targetFilePath = `${folderPath}/${activeFileName}`;
+          await renameItemRequest(projectId, currentActive, targetFilePath);
+
+          // Update openFiles tabs to reflect the new path
+          setOpenFiles((current) =>
+            current.map((file) =>
+              file.path === currentActive || file.path.startsWith(`${currentActive}/`)
+                ? { ...file, path: targetFilePath }
+                : file
+            )
+          );
+
+          // Set active file to the new location inside the folder
+          setActiveFile(targetFilePath);
+        }
+
+        // 3. Reload tree
         await loadWorkspace();
       }
     });
-    setPathInput('');
+    setPathInput(baseFolder ? `${baseFolder}/` : '');
   };
 
   const renamePath = async (path) => {
@@ -349,7 +391,11 @@ export function WorkspacePage() {
 
     setPathDialogBusy(true);
     try {
-      await pathDialog.onConfirm(value);
+      if (pathDialog.mode === 'create-folder') {
+        await pathDialog.onConfirm(value, pathDialogSaveSelectedFile);
+      } else {
+        await pathDialog.onConfirm(value);
+      }
       setPathDialog(null);
       setPathInput('');
     } finally {
@@ -382,8 +428,20 @@ export function WorkspacePage() {
             boxShadow: '8px 8px 0px 0px #000',
           }}
         >
+          <div
+            className="flex items-center justify-center overflow-hidden"
+            style={{
+              width: 54,
+              height: 54,
+              background: '#280736',
+              border: '3px solid #000',
+              boxShadow: '4px 4px 0px 0px #000',
+            }}
+          >
+            <img src="/logo-icon.png" alt="SkyCode" className="w-full h-full object-cover animate-pulse" />
+          </div>
           <div className="text-xl font-black uppercase tracking-tight text-black">SkyCode</div>
-          <div className="text-xs font-black uppercase tracking-widest text-black/60">Loading Workspace…</div>
+          <div className="text-xs font-black uppercase tracking-widest text-black/70">Loading Workspace…</div>
         </div>
       </div>
     );
@@ -521,14 +579,14 @@ export function WorkspacePage() {
               >
                 <div className="flex flex-col items-center gap-4">
                   <div
-                    className="flex h-16 w-16 items-center justify-center"
+                    className="flex h-16 w-16 items-center justify-center overflow-hidden"
                     style={{
-                      background: '#FFD93D',
+                      background: '#280736',
                       border: '3px solid #000',
                       boxShadow: '6px 6px 0px 0px #000',
                     }}
                   >
-                    <Rocket size={30} strokeWidth={2.5} color="#000" />
+                    <img src="/logo-icon.png" alt="SkyCode" className="w-full h-full object-cover" />
                   </div>
                   <div>
                     <div className="text-lg font-black uppercase tracking-tight" style={{ color: 'var(--color-text)' }}>
@@ -664,9 +722,31 @@ export function WorkspacePage() {
                   if (e.key === 'Enter') { e.preventDefault(); void submitPathDialog(); }
                   if (e.key === 'Escape') { setPathDialog(null); setPathInput(''); }
                 }}
-                placeholder={pathDialog.mode === 'rename' ? 'Enter new path' : 'e.g. src/main.py'}
+                placeholder={pathDialog.mode === 'rename' ? 'Enter new path' : pathDialog.mode === 'create-folder' ? 'e.g. components or pages' : 'e.g. src/main.py'}
                 className="nb-input"
               />
+
+              {/* Option to move selected file into newly created folder */}
+              {pathDialog.mode === 'create-folder' && pathDialog.selectedFile && (
+                <div className="mt-3 p-3 rounded border-2 border-black/20 bg-sky-50 dark:bg-sky-950/40 flex flex-col gap-1.5">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-black dark:text-white select-none">
+                    <input
+                      type="checkbox"
+                      checked={pathDialogSaveSelectedFile}
+                      onChange={(e) => setPathDialogSaveSelectedFile(e.target.checked)}
+                      className="w-4 h-4 accent-[#0284C7] rounded cursor-pointer"
+                    />
+                    <span>
+                      Save selected file <span className="font-mono text-sky-600 dark:text-sky-400 font-bold underline">{pathDialog.selectedFileName}</span> inside this folder
+                    </span>
+                  </label>
+                  {pathDialogSaveSelectedFile && pathInput.trim() && (
+                    <div className="text-[11px] font-mono text-black/70 dark:text-white/70 pl-6">
+                      → Will save to: <span className="text-[#0284C7] dark:text-[#38BDF8] font-bold">{pathInput.trim().replace(/\/+$/, '')}/{pathDialog.selectedFileName}</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="mt-4 flex justify-end gap-2">
                 <button
