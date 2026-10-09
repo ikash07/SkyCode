@@ -199,22 +199,8 @@ export function DashboardPage() {
             </p>
           </div>
 
-          {/* Brand badge & decorative star */}
+          {/* Decorative star */}
           <div className="flex items-center gap-4 z-10 shrink-0">
-            <div
-              className="hidden md:flex items-center gap-3 px-3.5 py-2"
-              style={{
-                background: '#280736',
-                border: '2px solid #FFD93D',
-                boxShadow: '4px 4px 0px 0px #FFD93D',
-              }}
-            >
-              <img src="/logo-icon.png" alt="SkyCode" className="w-9 h-9 object-cover" />
-              <div>
-                <div className="text-xs font-black uppercase tracking-wider text-white">SkyCode IDE</div>
-                <div className="text-[10px] font-black text-[#FFD93D] uppercase tracking-widest">Online Workspace</div>
-              </div>
-            </div>
             <Star
               size={44}
               strokeWidth={2.5}
