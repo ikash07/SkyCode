@@ -2,7 +2,7 @@
   <img src="frontend/public/logo-card.png" alt="SkyCode Online IDE" width="280" />
 </p>
 
-# SkyCode — Online IDE
+# SkyCode-Online IDE
 
 Production-oriented cloud IDE with a VS Code-like experience, Monaco editor, file explorer, tabs, terminal output, project dashboard, authentication, MongoDB persistence, and Docker-based code execution for Python, C, and Java.
 
