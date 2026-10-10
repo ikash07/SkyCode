@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="frontend/public/logo-card.png" alt="SkyCode Online IDE" width="280" height="275"/>
+  <img src="frontend/public/logo-card.png" alt="SkyCode Online IDE" width="280" height="260"/>
 </p>
 
 # SkyCode-Online IDE
