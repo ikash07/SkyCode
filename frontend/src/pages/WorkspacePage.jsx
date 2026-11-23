@@ -44,10 +44,41 @@ export function WorkspacePage() {
   }, [projectId]);
 
   const [sidebarView, setSidebarView] = useState('explorer');
+  const [currentProjectId, setCurrentProjectId] = useState(projectId);
   const [project, setProject] = useState(() => initialWorkspace?.project || null);
   const [tree, setTree] = useState(() => initialWorkspace?.tree || []);
   const [openFiles, setOpenFiles] = useState(() => initialWorkspace?.openFiles || []);
   const [activeFile, setActiveFile] = useState(() => initialWorkspace?.activeFile || (initialWorkspace?.openFiles?.[0]?.path ?? null));
+
+  // Synchronously adjust state during render when switching projects (0ms instant transition, zero frame lag)
+  if (currentProjectId !== projectId) {
+    setCurrentProjectId(projectId);
+
+    let cached = null;
+    try {
+      const saved = localStorage.getItem(`skycode_ws_${projectId}`);
+      if (saved) cached = JSON.parse(saved);
+    } catch {}
+
+    const cachedProject = cached?.project || null;
+    const cachedTree = Array.isArray(cached?.tree) ? cached.tree : [];
+    const cachedOpenFiles = Array.isArray(cached?.openFiles) ? cached.openFiles : [];
+    const cachedActive = cached?.activeFile || (cachedOpenFiles[0]?.path ?? null);
+
+    setProject(cachedProject);
+    setTree(cachedTree);
+    setOpenFiles(cachedOpenFiles);
+    setActiveFile(cachedActive);
+
+    const contentsMap = {};
+    for (const f of cachedOpenFiles) {
+      if (f.path && f.content !== undefined) contentsMap[f.path] = f.content;
+    }
+    fileContentsRef.current = contentsMap;
+    activeFileRef.current = cachedActive;
+    openFilesRef.current = cachedOpenFiles;
+    projectRef.current = cachedProject;
+  }
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [latestExecution, setLatestExecution] = useState(null);
@@ -139,36 +170,6 @@ export function WorkspacePage() {
     () => fileContentsRef.current[activeFile] ?? openFiles.find((file) => file.path === activeFile)?.content ?? '',
     [activeFile, openFiles]
   );
-
-  // Synchronously restore project workspace whenever projectId changes (switching projects)
-  useEffect(() => {
-    if (!projectId) return;
-
-    let cached = null;
-    try {
-      const saved = localStorage.getItem(`skycode_ws_${projectId}`);
-      if (saved) cached = JSON.parse(saved);
-    } catch {}
-
-    const cachedProject = cached?.project || null;
-    const cachedTree = Array.isArray(cached?.tree) ? cached.tree : [];
-    const cachedOpenFiles = Array.isArray(cached?.openFiles) ? cached.openFiles : [];
-    const cachedActive = cached?.activeFile || (cachedOpenFiles[0]?.path ?? null);
-
-    setProject(cachedProject);
-    setTree(cachedTree);
-    setOpenFiles(cachedOpenFiles);
-    setActiveFile(cachedActive);
-
-    const contentsMap = {};
-    for (const f of cachedOpenFiles) {
-      if (f.path && f.content !== undefined) contentsMap[f.path] = f.content;
-    }
-    fileContentsRef.current = contentsMap;
-    activeFileRef.current = cachedActive;
-    openFilesRef.current = cachedOpenFiles;
-    projectRef.current = cachedProject;
-  }, [projectId]);
 
   const loadWorkspace = async (targetId = projectId) => {
     if (!targetId) return;
@@ -845,10 +846,10 @@ export function WorkspacePage() {
 
           {/* Main Editor View */}
           <div className="relative min-h-0 flex-1">
-            {activeFile ? (
+            <div className={`h-full w-full ${activeFile ? 'block' : 'hidden'}`}>
               <CodeEditor
                 projectId={projectId}
-                filePath={activeFile}
+                filePath={activeFile || ''}
                 value={activeContent}
                 onChange={(nextContent) => {
                   if (!activeFile) return;
@@ -860,7 +861,8 @@ export function WorkspacePage() {
                 fontSize={dynamicCodeFontSize}
                 theme={theme}
               />
-            ) : (
+            </div>
+            {!activeFile && (
               /* Empty state */
               <div
                 className="grid h-full place-items-center text-center select-none p-6"

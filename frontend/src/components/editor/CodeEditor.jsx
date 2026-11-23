@@ -304,6 +304,7 @@ export const CodeEditor = memo(function CodeEditor({ projectId, filePath, value,
     <Editor
       height="100%"
       theme="minimal-white"
+      loading={<div className="h-full w-full" style={{ background: 'var(--color-panel, #fff)' }} />}
       language={language}
       onMount={handleMount}
       options={{
