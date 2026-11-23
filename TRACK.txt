@@ -5,41 +5,31 @@
 ================================================================================
 
 
-[2026-11-23] VERCEL FULLSTACK BACKEND INTEGRATION & CLOUD DEPLOYMENT
----------------------------------------------------------------------
-TASK: Add backend support for skycode.vercel.app frontend without changing existing UI/UX.
+[2026-11-23] RENDER BACKEND INTEGRATION TO VERCEL FRONTEND
+--------------------------------------------------------------
+TASK: Connect Render backend (https://skycode-t3ry.onrender.com) into Vercel frontend (skycode.vercel.app) without changing anything on Render or frontend UI.
 
 STATUS: COMPLETE & FULLY VERIFIED
 
 FEATURES IMPLEMENTED:
-  1. Vercel Serverless Backend Handler (api/index.js):
-     - Created root serverless function handler that mounts the Express app (createApp)
-       and manages the MongoDB connection lifecycle for Vercel Serverless Functions.
-     - Routes /api/health, /api/auth/*, /api/projects/* directly on skycode.vercel.app.
+  1. Multi-Layer Reverse Proxy (frontend/vercel.json & vercel.json):
+     - Configured /api/:path* rewrites to https://skycode-t3ry.onrender.com/api/:path*
+     - Allows skycode.vercel.app to route API calls directly to Render with full CORS compliance.
 
-  2. Vercel Routing & SPA Configuration (vercel.json & frontend/vercel.json):
-     - Configured rewrites:
-       * /api/(.*) -> /api/index.js (Express serverless backend)
-       * /((?!api/).*) -> /index.html (Single Page App routing for React)
-     - Set frontend/dist as build output directory.
+  2. Dedicated Production Environment (frontend/.env.production):
+     - Sets VITE_API_BASE_URL=https://skycode-t3ry.onrender.com/api
+     - Whitelisted in .gitignore to ensure Vercel builds with the Render backend URL.
 
-  3. Serverless Filesystem Adaptation (backend/src/utils/runtimePaths.js):
-     - Dynamically routes project storage and execution caches to os.tmpdir() when running
-       in serverless environments (VERCEL / AWS_LAMBDA), avoiding read-only filesystem errors.
-
-  4. Resilient Database Connection (backend/src/config/database.js):
-     - Added cached connection promise to prevent race conditions during cold starts.
-     - Automatically connects to primary MongoDB Atlas cluster with 10s connection timeout.
-
-  5. Dynamic API URL Fallback (frontend/src/api/client.js & TerminalPanel.jsx):
-     - Preserves full existing Neo-Brutalism UI, styles, and components with 0 changes.
-     - Automatically uses relative /api in production on Vercel if VITE_API_BASE_URL is not set,
-       preventing browser mixed-content and connection refused errors to localhost:4000.
+  3. Fail-Safe Client Resolution (frontend/src/api/client.js & TerminalPanel.jsx):
+     - Fallback in production defaults directly to https://skycode-t3ry.onrender.com/api
+     - WebSocket automatically establishes secure streaming on wss://skycode-t3ry.onrender.com/ws/terminal
+     - Zero styling, UI, or component changes.
 
 VERIFICATION:
-  - Local HTTP server test on api/index.js returned 200 OK from /api/health with database: 'connected'.
-  - Auth test on /api/auth/login verified MongoDB Atlas communication.
-  - Production monorepo build (npm run build) completed in 18s with 0 errors.
+  - Verified https://skycode-t3ry.onrender.com/api/health returns 200 OK and database connected.
+  - Production build (npm run build --workspace frontend) succeeded in 11.19s with 0 errors.
+  - Verified compiled JS bundle bakes in the exact Render API URL and WebSocket stream.
+
 
 
 

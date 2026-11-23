@@ -64,7 +64,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       onLiveStreamChange({ stdout: '', stderr: '' });
     }
 
-    const apiBase = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? (typeof window !== 'undefined' ? window.location.origin + '/api' : '/api') : 'http://localhost:4000/api');
+    const apiBase = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? 'https://skycode-t3ry.onrender.com/api' : 'http://localhost:4000/api');
     let wsUrl;
     try {
       const urlObj = new URL(apiBase);

@@ -5,6 +5,7 @@ coverage
 .env
 .env.*
 !.env.example
+!frontend/.env.production
 backend/storage/projects
 backend/storage/executions
 backend/storage/cache
