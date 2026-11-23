@@ -447,9 +447,12 @@ export async function detectPythonDependencies(snapshotRoot, entryFile) {
   // Filter out standard library modules
   const thirdParty = [...imports].filter((mod) => !BUILTIN_PYTHON_MODULES.has(mod));
 
-  // Filter out local project modules (files that exist in the workspace)
+  // Filter out local project modules and built-in cloud shims (pyaudio is emulated in cloud snapshot)
   const externalOnly = [];
   for (const mod of thirdParty) {
+    if (mod === 'pyaudio') {
+      continue;
+    }
     const asFile = path.join(snapshotRoot, `${mod}.py`);
     const asPackage = path.join(snapshotRoot, mod, '__init__.py');
     const isLocal = (await exists(asFile)) || (await exists(asPackage));
@@ -571,7 +574,32 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
     const pipCheck = await runShort(pythonCmd, ['-m', 'pip', '--version'], 10, pythonEnv);
     if (pipCheck.exitCode !== 0) {
       if (onLog) onLog('[SkyCode] Bootstrapping pip package manager...\r\n');
-      await runShort(pythonCmd, ['-m', 'ensurepip', '--default-pip'], 30, pythonEnv);
+      const ensureRes = await runShort(pythonCmd, ['-m', 'ensurepip', '--default-pip'], 30, pythonEnv);
+      if (ensureRes.exitCode !== 0 && process.platform !== 'win32') {
+        try {
+          const https = await import('node:https');
+          const fsSync = await import('node:fs');
+          const tmpPip = path.join('/tmp', 'get-pip.py');
+          await new Promise((res, rej) => {
+            const file = fsSync.createWriteStream(tmpPip);
+            https.get('https://bootstrap.pypa.io/get-pip.py', (resp) => {
+              if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
+                https.get(resp.headers.location, (r) => {
+                  r.pipe(file);
+                  file.on('finish', () => file.close(res));
+                }).on('error', rej);
+              } else {
+                resp.pipe(file);
+                file.on('finish', () => file.close(res));
+              }
+            }).on('error', rej);
+          });
+          await runShort(pythonCmd, [tmpPip, '--user', '--break-system-packages', '--no-warn-script-location'], 120, pythonEnv);
+          await fs.unlink(tmpPip).catch(() => {});
+        } catch (bootstrapErr) {
+          console.error('[SkyCode] Failed to bootstrap pip:', bootstrapErr.message);
+        }
+      }
     }
   } catch {
     // Ignore — pip may still work
