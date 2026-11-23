@@ -98,6 +98,7 @@ export function WorkspacePage() {
   }, [terminalHeight]);
 
   const autosaveTimer = useRef(null);
+  const fileContentsRef = useRef({});
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [pathDialog, setPathDialog] = useState(null);
   const [pathInput, setPathInput] = useState('');
@@ -112,8 +113,8 @@ export function WorkspacePage() {
   projectRef.current = project;
 
   const activeContent = useMemo(
-    () => openFiles.find((file) => file.path === activeFile)?.content ?? '',
-    [activeFile, openFiles]
+    () => fileContentsRef.current[activeFile] ?? openFiles.find((file) => file.path === activeFile)?.content ?? '',
+    [activeFile]
   );
 
   const loadWorkspace = async () => {
@@ -160,6 +161,7 @@ export function WorkspacePage() {
       if (preferred) {
         try {
           const file = await readFileRequest(projectId, preferred);
+          fileContentsRef.current[file.path] = file.content;
           setOpenFiles([{ path: file.path, content: file.content, dirty: false }]);
           setActiveFile(file.path);
         } catch (e) {
@@ -178,33 +180,29 @@ export function WorkspacePage() {
   }, [projectId]);
 
   const updateOpenFile = (filePath, content, dirty = true) => {
-    setOpenFiles((current) =>
-      current.map((file) => (file.path === filePath ? { ...file, content, dirty } : file))
-    );
+    fileContentsRef.current[filePath] = content;
+    const currentFile = openFilesRef.current.find((f) => f.path === filePath);
+    if (currentFile && !currentFile.dirty && dirty) {
+      setOpenFiles((current) =>
+        current.map((file) => (file.path === filePath ? { ...file, dirty: true } : file))
+      );
+    }
   };
 
   const saveFile = useCallback(
-    async (filePath, skipReload = false) => {
+    async (filePath) => {
       if (!projectId || !filePath) return;
       const currentFile = openFilesRef.current.find((file) => file.path === filePath);
-      if (!currentFile || !currentFile.dirty) return;
+      const contentToSave = fileContentsRef.current[filePath] ?? currentFile?.content;
+      if (contentToSave === undefined) return;
 
-      const contentToSave = currentFile.content;
-      await saveFileRequest(projectId, currentFile.path, contentToSave);
+      await saveFileRequest(projectId, filePath, contentToSave);
 
       setOpenFiles((current) =>
-        current.map((file) => {
-          if (file.path !== filePath) return file;
-          if (file.content === contentToSave) {
-            return { ...file, dirty: false };
-          }
-          return file;
-        })
+        current.map((file) =>
+          file.path === filePath ? { ...file, content: contentToSave, dirty: false } : file
+        )
       );
-
-      if (!skipReload) {
-        await loadWorkspace();
-      }
     },
     [projectId]
   );
@@ -212,7 +210,7 @@ export function WorkspacePage() {
   const saveActiveFile = useCallback(async () => {
     const currentActive = activeFileRef.current;
     if (currentActive) {
-      await saveFile(currentActive, false);
+      await saveFile(currentActive);
     }
   }, [saveFile]);
 
@@ -222,7 +220,7 @@ export function WorkspacePage() {
         window.clearTimeout(autosaveTimer.current);
       }
       autosaveTimer.current = window.setTimeout(() => {
-        void saveFile(filePath, true);
+        void saveFile(filePath);
       }, 1500);
     },
     [saveFile]
@@ -256,6 +254,7 @@ export function WorkspacePage() {
 
     try {
       const file = await readFileRequest(projectId, filePath);
+      fileContentsRef.current[file.path] = file.content;
       setOpenFiles((current) => {
         if (current.some((f) => f.path.toLowerCase() === file.path.toLowerCase())) {
           return current;

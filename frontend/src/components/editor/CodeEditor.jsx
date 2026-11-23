@@ -10,7 +10,7 @@ export const CodeEditor = memo(function CodeEditor({ filePath, value, onChange, 
   onChangeRef.current = onChange;
   const isInternalChange = useRef(false);
 
-  // Switch or update the Monaco model on filePath / value change without re-mounting the editor
+  // 1. Instant file switching effect (only runs when active file or language changes)
   useEffect(() => {
     const editor = editorRef.current;
     const monaco = monacoRef.current;
@@ -21,18 +21,31 @@ export const CodeEditor = memo(function CodeEditor({ filePath, value, onChange, 
     if (!model) {
       model = monaco.editor.createModel(value ?? '', language, uri);
     } else {
-      if (value !== undefined && model.getValue() !== value && !isInternalChange.current) {
-        isInternalChange.current = true;
-        model.setValue(value);
-        isInternalChange.current = false;
+      if (model.getLanguageId() !== language) {
+        monaco.editor.setModelLanguage(model, language);
       }
-      monaco.editor.setModelLanguage(model, language);
     }
 
     if (editor.getModel() !== model) {
       editor.setModel(model);
     }
-  }, [filePath, language, value]);
+  }, [filePath, language]);
+
+  // 2. External value sync (only runs when file is loaded from network or starter files)
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    if (isInternalChange.current) {
+      isInternalChange.current = false;
+      return;
+    }
+
+    const model = editor.getModel();
+    if (model && value !== undefined && model.getValue() !== value) {
+      model.setValue(value);
+    }
+  }, [value]);
 
   const handleMount = (editor, monacoInstance) => {
     editorRef.current = editor;
@@ -293,7 +306,7 @@ export const CodeEditor = memo(function CodeEditor({ filePath, value, onChange, 
       options={{
         fontSize,
         fontFamily: "'Space Mono', monospace, Consolas",
-        minimap: { enabled: true },
+        minimap: { enabled: false },
         smoothScrolling: true,
         automaticLayout: true,
         mouseWheelZoom: true,
@@ -302,7 +315,10 @@ export const CodeEditor = memo(function CodeEditor({ filePath, value, onChange, 
         scrollBeyondLastLine: false,
         renderLineHighlight: 'all',
         lineNumbersMinChars: 3,
-        wordWrap: 'on'
+        wordWrap: 'on',
+        renderValidationDecorations: 'editable',
+        quickSuggestions: { other: true, comments: false, strings: false },
+        cursorBlinking: 'smooth'
       }}
     />
   );

@@ -175,10 +175,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [history, terminalInput, busy, isRunning]);
+  }, [history]);
 
   const handleKeyDown = (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
