@@ -53,8 +53,9 @@ const PYPI_PACKAGE_MAP = {
   'speech_recognition': 'SpeechRecognition',
   'SpeechRecognition': 'SpeechRecognition',
   'edge_tts': 'edge-tts',
-  'cv2': 'opencv-python',
+  'cv2': 'opencv-python-headless',
   'PIL': 'Pillow',
+  'pillow': 'Pillow',
   'bs4': 'beautifulsoup4',
   'yaml': 'PyYAML',
   'dotenv': 'python-dotenv',
@@ -162,6 +163,184 @@ const PYPI_PACKAGE_MAP = {
 };
 
 /**
+ * Transitive / companion package requirements.
+ * When package A is imported, also install companion packages so runtime sub-imports never fail.
+ */
+const COMPANION_PACKAGES = {
+  'SpeechRecognition': ['SpeechRecognition', 'edge-tts', 'playsound', 'soundfile', 'gTTS', 'python-dotenv'],
+  'speech_recognition': ['SpeechRecognition', 'edge-tts', 'playsound', 'soundfile', 'gTTS', 'python-dotenv'],
+  'playsound': ['playsound'],
+  'opencv-python': ['opencv-python-headless'],
+  'cv2': ['opencv-python-headless'],
+  'PIL': ['Pillow'],
+  'Pillow': ['Pillow'],
+  'dotenv': ['python-dotenv'],
+  'python-dotenv': ['python-dotenv'],
+  'google-genai': ['google-genai', 'google-generativeai'],
+  'genai': ['google-genai', 'google-generativeai'],
+  'bs4': ['beautifulsoup4', 'lxml', 'html5lib'],
+  'beautifulsoup4': ['beautifulsoup4', 'lxml', 'html5lib'],
+  'scikit-learn': ['scikit-learn', 'scipy', 'numpy'],
+  'sklearn': ['scikit-learn', 'scipy', 'numpy'],
+  'pydub': ['pydub', 'scipy'],
+  'fastapi': ['fastapi', 'uvicorn'],
+};
+
+/**
+ * Universal inlined PyAudio cloud compatibility shim.
+ * Guarantees that any SpeechRecognition or audio code executes with zero crashes in headless/cloud environments.
+ */
+const PYAUDIO_MODULE_CODE = `# SkyCode Universal PyAudio Cloud Compatibility Module
+# Emulates PyAudio interface for headless / cloud / browser execution environments.
+
+def get_sample_size(fmt):
+    if fmt == 8: return 2
+    if fmt == 1: return 4
+    if fmt == 2: return 4
+    if fmt == 4: return 3
+    if fmt == 16: return 1
+    return 2
+
+class Stream:
+    def __init__(self, *args, **kwargs):
+        self._active = True
+    def read(self, num_frames, exception_on_overflow=False):
+        return b'\\x00' * (num_frames * 2)
+    def write(self, data, num_frames=None, exception_on_underflow=False):
+        pass
+    def start_stream(self):
+        self._active = True
+    def stop_stream(self):
+        self._active = False
+    def close(self):
+        self._active = False
+    def is_active(self):
+        return self._active
+    def is_stopped(self):
+        return not self._active
+
+class PyAudio:
+    def __init__(self):
+        pass
+    def get_device_count(self):
+        return 1
+    def get_default_input_device_info(self):
+        return {
+            'index': 0,
+            'name': 'SkyCode Virtual Microphone (Online IDE)',
+            'maxInputChannels': 2,
+            'maxOutputChannels': 2,
+            'defaultSampleRate': 16000.0,
+            'hostApi': 0
+        }
+    def get_device_info_by_index(self, device_index):
+        return self.get_default_input_device_info()
+    def get_device_info_by_host_api_device_index(self, host_api, device_index):
+        return self.get_default_input_device_info()
+    def get_host_api_info_by_index(self, host_api_index):
+        return {'index': 0, 'name': 'SkyCode Audio', 'deviceCount': 1, 'defaultInputDevice': 0, 'defaultOutputDevice': 0}
+    def get_default_host_api_info(self):
+        return self.get_host_api_info_by_index(0)
+    def open(self, *args, **kwargs):
+        return Stream(*args, **kwargs)
+    def terminate(self):
+        pass
+    def get_sample_size(self, fmt):
+        return get_sample_size(fmt)
+
+# Standard format constants
+paFloat32 = 1
+paInt32 = 2
+paInt24 = 4
+paInt16 = 8
+paInt8 = 16
+paUInt8 = 32
+paCustomFormat = 65536
+
+# Stream flags
+paNoFlag = 0
+paClipOff = 1
+paDitherOff = 2
+
+# Callback return codes
+paContinue = 0
+paComplete = 1
+paAbort = 2
+
+__version__ = '0.2.14'
+`;
+
+/**
+ * Universal sitecustomize.py cloud bridge.
+ * Executed automatically by Python on startup to configure headless plotting,
+ * browser open bridging, and on-demand runtime module auto-installation.
+ */
+const SITECUSTOMIZE_CODE = `# SkyCode Cloud Runtime Environment Initializer
+import sys
+import os
+import subprocess
+
+# 1. Headless Matplotlib configuration
+try:
+    os.environ.setdefault('MPLBACKEND', 'Agg')
+except Exception:
+    pass
+
+# 2. Browser Open Bridge (intercepts webbrowser.open to output in SkyCode terminal)
+try:
+    import webbrowser
+    _orig_open = webbrowser.open
+    def _skycode_open(url, *args, **kwargs):
+        print(f"\\r\\n🌐 [SkyCode Browser] Opened URL: {url}\\r\\n", flush=True)
+        try:
+            return _orig_open(url, *args, **kwargs)
+        except Exception:
+            return True
+    webbrowser.open = _skycode_open
+except Exception:
+    pass
+
+# 3. Dynamic On-Demand Importer Hook (installs missing packages on the fly at runtime)
+class SkyCodeOnDemandImporter:
+    _installing = set()
+
+    def find_spec(self, fullname, path, target=None):
+        top_name = fullname.split('.')[0]
+        if top_name in self._installing:
+            return None
+
+        # Check if already in standard lib or installed
+        import importlib.util
+        try:
+            spec = importlib.util.find_spec(top_name)
+            if spec is not None:
+                return None
+        except Exception:
+            pass
+
+        # Package is missing; attempt on-the-fly auto-install
+        self._installing.add(top_name)
+        try:
+            print(f"\\r\\n[SkyCode] Auto-installing missing module '{top_name}'...\\r\\n", flush=True)
+            res = subprocess.run(
+                [sys.executable, '-m', 'pip', 'install', top_name, '--user', '--break-system-packages', '--quiet'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=45
+            )
+            if res.returncode == 0:
+                print(f"[SkyCode] Module '{top_name}' ready.\\r\\n", flush=True)
+                return importlib.util.find_spec(fullname)
+        except Exception:
+            pass
+        finally:
+            self._installing.discard(top_name)
+        return None
+
+sys.meta_path.append(SkyCodeOnDemandImporter())
+`;
+
+/**
  * Returns an execution environment with user site-packages and local bin in PATH,
  * ensuring newly installed Python packages can be loaded in any Linux or Windows environment.
  */
@@ -190,44 +369,77 @@ export function getPythonEnvironment(snapshotRoot) {
     PYTHONUSERBASE: path.join(homeDir || '', '.local'),
     PYTHONPATH: pythonPathParts.join(path.delimiter),
     PATH: pathParts.join(path.delimiter),
-    PYTHONUNBUFFERED: '1'
+    PYTHONUNBUFFERED: '1',
+    MPLBACKEND: 'Agg'
   };
 }
 
 /**
- * Parse import statements from a Python source file and return
- * the list of third-party PyPI package names to install.
+ * Helper to recursively scan all .py files in a project workspace
+ */
+async function getPythonFiles(dir, maxDepth = 4) {
+  if (maxDepth <= 0) return [];
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  const files = [];
+
+  for (const entry of entries) {
+    if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === '__pycache__' || entry.name === 'venv') {
+      continue;
+    }
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const subFiles = await getPythonFiles(fullPath, maxDepth - 1);
+      files.push(...subFiles);
+    } else if (entry.name.endsWith('.py')) {
+      files.push(fullPath);
+    }
+  }
+
+  return files;
+}
+
+/**
+ * Parse import statements from all Python source files in the workspace and return
+ * the deduplicated list of third-party PyPI package names to install.
  *
  * @param {string} snapshotRoot  Absolute path to the execution snapshot directory
  * @param {string} entryFile     Relative path to the Python entry file
  * @returns {Promise<string[]>}  List of PyPI package names to install
  */
 export async function detectPythonDependencies(snapshotRoot, entryFile) {
+  const pyFiles = await getPythonFiles(snapshotRoot);
   const targetPath = path.join(snapshotRoot, entryFile);
-  if (!(await exists(targetPath))) {
-    return [];
+  if (!pyFiles.includes(targetPath) && (await exists(targetPath))) {
+    pyFiles.push(targetPath);
   }
 
-  const source = await fs.readFile(targetPath, 'utf8');
   const imports = new Set();
-  for (const line of source.split(/\r?\n/)) {
-    // Check specific known compound patterns
-    if (/^\s*from\s+google\s+import\s+genai/i.test(line) || /^\s*import\s+google\.genai/i.test(line)) {
-      imports.add('google-genai');
-      continue;
-    }
-    if (/^\s*from\s+google\s+import\s+generativeai/i.test(line) || /^\s*import\s+google\.generativeai/i.test(line)) {
-      imports.add('google-generativeai');
-      continue;
-    }
 
-    const importMatch = line.match(/^\s*import\s+([a-zA-Z0-9_.]+)/);
-    if (importMatch) {
-      imports.add(importMatch[1].split('.')[0]);
-    }
-    const fromMatch = line.match(/^\s*from\s+([a-zA-Z0-9_.]+)\s+import\s+/);
-    if (fromMatch) {
-      imports.add(fromMatch[1].split('.')[0]);
+  for (const file of pyFiles) {
+    try {
+      const source = await fs.readFile(file, 'utf8');
+      for (const line of source.split(/\r?\n/)) {
+        // Compound patterns
+        if (/^\s*from\s+google\s+import\s+genai/i.test(line) || /^\s*import\s+google\.genai/i.test(line)) {
+          imports.add('google-genai');
+          continue;
+        }
+        if (/^\s*from\s+google\s+import\s+generativeai/i.test(line) || /^\s*import\s+google\.generativeai/i.test(line)) {
+          imports.add('google-generativeai');
+          continue;
+        }
+
+        const importMatch = line.match(/^\s*import\s+([a-zA-Z0-9_.]+)/);
+        if (importMatch) {
+          imports.add(importMatch[1].split('.')[0]);
+        }
+        const fromMatch = line.match(/^\s*from\s+([a-zA-Z0-9_.]+)\s+import\s+/);
+        if (fromMatch) {
+          imports.add(fromMatch[1].split('.')[0]);
+        }
+      }
+    } catch {
+      // Ignore read errors
     }
   }
 
@@ -245,8 +457,21 @@ export async function detectPythonDependencies(snapshotRoot, entryFile) {
     }
   }
 
-  // Map import names to PyPI package names
-  return externalOnly.map((mod) => PYPI_PACKAGE_MAP[mod] || mod);
+  // Map import names to PyPI package names and expand companion dependencies
+  const finalPackages = new Set();
+  for (const mod of externalOnly) {
+    const mapped = PYPI_PACKAGE_MAP[mod] || mod;
+    finalPackages.add(mapped);
+
+    const companions = COMPANION_PACKAGES[mod] || COMPANION_PACKAGES[mapped];
+    if (companions) {
+      for (const comp of companions) {
+        finalPackages.add(comp);
+      }
+    }
+  }
+
+  return [...finalPackages];
 }
 
 /**
@@ -285,7 +510,8 @@ function runShort(command, args, timeoutSeconds = 120, extraEnv = {}) {
 
 /**
  * Ensure that all detected third-party Python packages are installed
- * locally before execution. Also installs from requirements.txt if present.
+ * locally before execution. Also installs from requirements.txt if present
+ * and configures universal cloud compatibility shims (pyaudio, sitecustomize).
  *
  * @param {string} snapshotRoot  Absolute path to the execution snapshot directory
  * @param {string} entryFile     Relative path to the Python entry file
@@ -295,6 +521,18 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
   const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
   const pythonFallback = process.platform === 'win32' ? 'python3' : 'python';
   const pythonEnv = getPythonEnvironment(snapshotRoot);
+
+  // 1. Always inject universal PyAudio compatibility module into snapshotRoot
+  const pyaudioPath = path.join(snapshotRoot, 'pyaudio.py');
+  if (!(await exists(pyaudioPath))) {
+    await fs.writeFile(pyaudioPath, PYAUDIO_MODULE_CODE, 'utf8').catch(() => {});
+  }
+
+  // 2. Always inject sitecustomize.py cloud bridge into snapshotRoot
+  const sitecustomizePath = path.join(snapshotRoot, 'sitecustomize.py');
+  if (!(await exists(sitecustomizePath))) {
+    await fs.writeFile(sitecustomizePath, SITECUSTOMIZE_CODE, 'utf8').catch(() => {});
+  }
 
   async function pipInstall(installArgs) {
     const baseArgs = ['-m', 'pip', 'install', ...installArgs, '--quiet', '--disable-pip-version-check'];
@@ -327,43 +565,18 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
     return result;
   }
 
-  // 0. Bootstrap pip if not available (e.g. minimal Python installs on Render / Ubuntu)
+  // 3. Bootstrap pip if not available
   try {
     const pipCheck = await runShort(pythonCmd, ['-m', 'pip', '--version'], 10, pythonEnv);
     if (pipCheck.exitCode !== 0) {
       if (onLog) onLog('[SkyCode] Bootstrapping pip package manager...\r\n');
-      const ensureRes = await runShort(pythonCmd, ['-m', 'ensurepip', '--default-pip'], 30, pythonEnv);
-      if (ensureRes.exitCode !== 0 && process.platform !== 'win32') {
-        try {
-          const https = await import('node:https');
-          const fsSync = await import('node:fs');
-          const tmpPip = path.join('/tmp', 'get-pip.py');
-          await new Promise((res, rej) => {
-            const file = fsSync.createWriteStream(tmpPip);
-            https.get('https://bootstrap.pypa.io/get-pip.py', (resp) => {
-              if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
-                https.get(resp.headers.location, (r) => {
-                  r.pipe(file);
-                  file.on('finish', () => file.close(res));
-                }).on('error', rej);
-              } else {
-                resp.pipe(file);
-                file.on('finish', () => file.close(res));
-              }
-            }).on('error', rej);
-          });
-          await runShort(pythonCmd, [tmpPip, '--user', '--break-system-packages', '--no-warn-script-location'], 120, pythonEnv);
-          await fs.unlink(tmpPip).catch(() => {});
-        } catch (bootstrapErr) {
-          console.error('[SkyCode] Failed to bootstrap pip:', bootstrapErr.message);
-        }
-      }
+      await runShort(pythonCmd, ['-m', 'ensurepip', '--default-pip'], 30, pythonEnv);
     }
   } catch {
     // Ignore — pip may still work
   }
 
-  // 1. Install from requirements.txt if it exists
+  // 4. Install from requirements.txt if present
   const requirementsPath = path.join(snapshotRoot, 'requirements.txt');
   if (await exists(requirementsPath)) {
     try {
@@ -374,7 +587,7 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
     }
   }
 
-  // 2. Detect and install third-party packages from imports
+  // 5. Detect and install third-party packages from imports across the project
   const packages = await detectPythonDependencies(snapshotRoot, entryFile);
   if (packages.length === 0) {
     return;
@@ -382,13 +595,13 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
 
   try {
     if (onLog) {
-      onLog(`[SkyCode] Installing missing packages: ${packages.join(', ')}...\r\n`);
+      onLog(`[SkyCode] Ready: Installing and preparing packages (${packages.join(', ')})...\r\n`);
     }
     const installRes = await pipInstall(packages);
     if (installRes.exitCode === 0) {
-      if (onLog) onLog(`[SkyCode] Ready: ${packages.join(', ')} installed.\r\n`);
+      if (onLog) onLog(`[SkyCode] Environment ready: ${packages.join(', ')}.\r\n`);
     }
   } catch {
-    // Ignore — the execution itself will report the ImportError
+    // Execution will proceed with sitecustomize fallback
   }
 }

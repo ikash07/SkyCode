@@ -7,6 +7,7 @@ import { env } from '../config/env.js';
 import { executionsRoot } from '../utils/runtimePaths.js';
 import { copyDirectory, removeIfExists } from '../utils/fs.js';
 import { ensureLocalPythonDependencies, getPythonEnvironment } from '../utils/pythonPackages.js';
+import { ensureLocalNodeDependencies } from '../utils/nodePackages.js';
 
 const compileLimiter = pLimit(4);
 
@@ -99,6 +100,16 @@ export async function spawnInteractiveExecution(input) {
   try {
     if (language === 'javascript' || language === 'node') {
       commandString = `node ${entryFile}`;
+
+      // Auto-install missing Node dependencies before execution
+      try {
+        await ensureLocalNodeDependencies(snapshotRoot, entryFile, (logChunk) => {
+          if (onStdout) onStdout(logChunk);
+        });
+      } catch {
+        // Ignore install errors
+      }
+
       childProcess = spawn('node', [path.join(snapshotRoot, entryFile)], {
         cwd: snapshotRoot,
         windowsHide: true

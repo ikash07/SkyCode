@@ -7,6 +7,7 @@ import { env } from '../config/env.js';
 import { cacheRoot, executionsRoot } from '../utils/runtimePaths.js';
 import { copyDirectory, exists, removeIfExists } from '../utils/fs.js';
 import { detectPythonDependencies, ensureLocalPythonDependencies, getPythonEnvironment } from '../utils/pythonPackages.js';
+import { ensureLocalNodeDependencies } from '../utils/nodePackages.js';
 
 const concurrencyLimiter = pLimit(10);
 let dockerAvailableCache = null;
@@ -86,6 +87,11 @@ function isDockerFailure(result) {
 
 async function runLocalNode(snapshotRoot, entryFile, stdin = '') {
   try {
+    try {
+      await ensureLocalNodeDependencies(snapshotRoot, entryFile);
+    } catch {
+      // Ignore auto-install error
+    }
     const result = await runProcess('node', [path.join(snapshotRoot, entryFile)], env.DOCKER_EXECUTION_TIMEOUT_SECONDS, stdin);
     return {
       ...result,
