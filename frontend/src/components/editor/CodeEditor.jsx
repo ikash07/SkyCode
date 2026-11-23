@@ -2,7 +2,7 @@ import { useRef, useEffect, memo } from 'react';
 import Editor from '@monaco-editor/react';
 import { editorLanguage } from '../../utils/language';
 
-export const CodeEditor = memo(function CodeEditor({ filePath, value, onChange, fontSize = 14, theme = 'dark' }) {
+export const CodeEditor = memo(function CodeEditor({ projectId, filePath, value, onChange, fontSize = 14, theme = 'dark' }) {
   const language = filePath ? editorLanguage(filePath) : 'plaintext';
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
@@ -10,13 +10,13 @@ export const CodeEditor = memo(function CodeEditor({ filePath, value, onChange, 
   onChangeRef.current = onChange;
   const isInternalChange = useRef(false);
 
-  // 1. Instant file switching effect (only runs when active file or language changes)
+  // 1. Instant file switching effect (only runs when active file, language, or projectId changes)
   useEffect(() => {
     const editor = editorRef.current;
     const monaco = monacoRef.current;
     if (!editor || !monaco || !filePath) return;
 
-    const uri = monaco.Uri.parse(`file:///${filePath.replace(/^\/+/, '')}`);
+    const uri = monaco.Uri.parse(`file:///${projectId || 'global'}/${filePath.replace(/^\/+/, '')}`);
     let model = monaco.editor.getModel(uri);
     if (!model) {
       model = monaco.editor.createModel(value ?? '', language, uri);
@@ -24,12 +24,15 @@ export const CodeEditor = memo(function CodeEditor({ filePath, value, onChange, 
       if (model.getLanguageId() !== language) {
         monaco.editor.setModelLanguage(model, language);
       }
+      if (value !== undefined && (model.getValue() === '' || (value !== '' && model.getValue() !== value))) {
+        model.setValue(value);
+      }
     }
 
     if (editor.getModel() !== model) {
       editor.setModel(model);
     }
-  }, [filePath, language]);
+  }, [filePath, language, projectId]);
 
   // 2. External value sync (only runs when file is loaded from network or starter files)
   useEffect(() => {

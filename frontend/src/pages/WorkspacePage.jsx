@@ -137,19 +137,67 @@ export function WorkspacePage() {
 
   const activeContent = useMemo(
     () => fileContentsRef.current[activeFile] ?? openFiles.find((file) => file.path === activeFile)?.content ?? '',
-    [activeFile]
+    [activeFile, openFiles]
   );
 
-  const loadWorkspace = async () => {
+  // Synchronously restore project workspace whenever projectId changes (switching projects)
+  useEffect(() => {
     if (!projectId) return;
-    const [nextProject, nextTree, history] = await Promise.all([
-      getProjectRequest(projectId),
-      treeRequest(projectId),
-      executionHistoryRequest(projectId)
+
+    let cached = null;
+    try {
+      const saved = localStorage.getItem(`skycode_ws_${projectId}`);
+      if (saved) cached = JSON.parse(saved);
+    } catch {}
+
+    const cachedProject = cached?.project || null;
+    const cachedTree = Array.isArray(cached?.tree) ? cached.tree : [];
+    const cachedOpenFiles = Array.isArray(cached?.openFiles) ? cached.openFiles : [];
+    const cachedActive = cached?.activeFile || (cachedOpenFiles[0]?.path ?? null);
+
+    setProject(cachedProject);
+    setTree(cachedTree);
+    setOpenFiles(cachedOpenFiles);
+    setActiveFile(cachedActive);
+
+    const contentsMap = {};
+    for (const f of cachedOpenFiles) {
+      if (f.path && f.content !== undefined) contentsMap[f.path] = f.content;
+    }
+    fileContentsRef.current = contentsMap;
+    activeFileRef.current = cachedActive;
+    openFilesRef.current = cachedOpenFiles;
+    projectRef.current = cachedProject;
+  }, [projectId]);
+
+  const loadWorkspace = async (targetId = projectId) => {
+    if (!targetId) return;
+
+    // Kick off active file read immediately in parallel with workspace metadata
+    const curActive = activeFileRef.current;
+    const activeFilePromise = curActive
+      ? readFileRequest(targetId, curActive).catch(() => null)
+      : Promise.resolve(null);
+
+    const [nextProject, nextTree, history, activeFileData] = await Promise.all([
+      getProjectRequest(targetId),
+      treeRequest(targetId),
+      executionHistoryRequest(targetId),
+      activeFilePromise
     ]);
+
+    if (targetId !== projectId) return;
+
     setProject(nextProject);
     setTree(nextTree);
     setLatestExecution(history[0] ?? null);
+
+    if (activeFileData && activeFileData.content !== undefined) {
+      fileContentsRef.current[activeFileData.path] = activeFileData.content;
+      setOpenFiles((current) =>
+        current.map((f) => (f.path.toLowerCase() === activeFileData.path.toLowerCase() ? { ...f, path: activeFileData.path, content: activeFileData.content } : f))
+      );
+    }
 
     let treeFiles = nextTree;
     // Auto-create starter file if project has no files
@@ -170,9 +218,9 @@ export function WorkspacePage() {
       const initialFile = defaultEntryMap[lang] || 'main.py';
       const initialContent = defaultContentMap[lang] || 'print("Hello from SkyCode!")\n';
       try {
-        await saveFileRequest(projectId, initialFile, initialContent);
-        treeFiles = await treeRequest(projectId);
-        setTree(treeFiles);
+        await saveFileRequest(targetId, initialFile, initialContent);
+        treeFiles = await treeRequest(targetId);
+        if (targetId === projectId) setTree(treeFiles);
       } catch (err) {
         console.warn('Initial starter file setup:', err);
       }
@@ -183,28 +231,14 @@ export function WorkspacePage() {
       const preferred = guessEntryFile(treeFiles, nextProject?.language ?? 'python');
       if (preferred) {
         try {
-          const file = await readFileRequest(projectId, preferred);
-          fileContentsRef.current[file.path] = file.content;
-          setOpenFiles([{ path: file.path, content: file.content, dirty: false }]);
-          setActiveFile(file.path);
-        } catch (e) {
-          console.warn('Auto open entry file:', e);
-        }
-      }
-    } else if (activeFileRef.current) {
-      // Revalidate active file content in background if empty or missing
-      const curActive = activeFileRef.current;
-      if (!fileContentsRef.current[curActive]) {
-        try {
-          const file = await readFileRequest(projectId, curActive);
-          if (file && file.content !== undefined) {
+          const file = await readFileRequest(targetId, preferred);
+          if (targetId === projectId) {
             fileContentsRef.current[file.path] = file.content;
-            setOpenFiles((current) =>
-              current.map((f) => (f.path.toLowerCase() === file.path.toLowerCase() ? { ...f, path: file.path, content: file.content } : f))
-            );
+            setOpenFiles([{ path: file.path, content: file.content, dirty: false }]);
+            setActiveFile(file.path);
           }
         } catch (e) {
-          console.warn('Background active file load:', e);
+          console.warn('Auto open entry file:', e);
         }
       }
     }
@@ -813,6 +847,7 @@ export function WorkspacePage() {
           <div className="relative min-h-0 flex-1">
             {activeFile ? (
               <CodeEditor
+                projectId={projectId}
                 filePath={activeFile}
                 value={activeContent}
                 onChange={(nextContent) => {
