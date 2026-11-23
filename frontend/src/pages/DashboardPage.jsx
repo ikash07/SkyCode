@@ -51,8 +51,23 @@ export function DashboardPage() {
   const { theme, setTheme } = useThemeMode();
   const navigate = useNavigate();
 
-  const [projects, setProjects] = useState([]);
-  const [loadingProjects, setLoadingProjects] = useState(true);
+  const CACHE_PROJECTS_KEY = 'skycode_cached_projects';
+
+  const [projects, setProjects] = useState(() => {
+    try {
+      const saved = localStorage.getItem(CACHE_PROJECTS_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loadingProjects, setLoadingProjects] = useState(() => {
+    try {
+      return !localStorage.getItem(CACHE_PROJECTS_KEY);
+    } catch {
+      return true;
+    }
+  });
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [language, setLanguage] = useState('python');
@@ -60,10 +75,17 @@ export function DashboardPage() {
   const [error, setError] = useState(null);
 
   const loadProjects = async () => {
-    setLoadingProjects(true);
+    if (projects.length === 0) {
+      setLoadingProjects(true);
+    }
     try {
       const data = await listProjectsRequest();
-      setProjects(data || []);
+      if (Array.isArray(data)) {
+        setProjects(data);
+        try {
+          localStorage.setItem(CACHE_PROJECTS_KEY, JSON.stringify(data));
+        } catch {}
+      }
     } catch (err) {
       console.error(err);
     } finally {

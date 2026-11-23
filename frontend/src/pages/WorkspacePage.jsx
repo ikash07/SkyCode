@@ -31,11 +31,23 @@ export function WorkspacePage() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { theme } = useThemeMode();
+  const wsCacheKey = `skycode_ws_${projectId}`;
+
+  const initialWorkspace = useMemo(() => {
+    if (!projectId) return null;
+    try {
+      const saved = localStorage.getItem(wsCacheKey);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  }, [projectId]);
+
   const [sidebarView, setSidebarView] = useState('explorer');
-  const [project, setProject] = useState(null);
-  const [tree, setTree] = useState([]);
-  const [openFiles, setOpenFiles] = useState([]);
-  const [activeFile, setActiveFile] = useState(null);
+  const [project, setProject] = useState(() => initialWorkspace?.project || null);
+  const [tree, setTree] = useState(() => initialWorkspace?.tree || []);
+  const [openFiles, setOpenFiles] = useState(() => initialWorkspace?.openFiles || []);
+  const [activeFile, setActiveFile] = useState(() => initialWorkspace?.activeFile || (initialWorkspace?.openFiles?.[0]?.path ?? null));
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [latestExecution, setLatestExecution] = useState(null);
@@ -99,7 +111,17 @@ export function WorkspacePage() {
   }, [terminalHeight]);
 
   const autosaveTimer = useRef(null);
-  const fileContentsRef = useRef({});
+  const fileContentsRef = useRef((() => {
+    const map = {};
+    if (initialWorkspace?.openFiles && Array.isArray(initialWorkspace.openFiles)) {
+      for (const f of initialWorkspace.openFiles) {
+        if (f.path && f.content !== undefined) {
+          map[f.path] = f.content;
+        }
+      }
+    }
+    return map;
+  })());
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [pathDialog, setPathDialog] = useState(null);
   const [pathInput, setPathInput] = useState('');
@@ -156,7 +178,7 @@ export function WorkspacePage() {
       }
     }
 
-    // Auto-open entry file so the editor canvas is never blank
+    // Auto-open entry file so the editor canvas is never blank if nothing is open
     if (!activeFileRef.current && treeFiles.length > 0) {
       const preferred = guessEntryFile(treeFiles, nextProject?.language ?? 'python');
       if (preferred) {
@@ -169,6 +191,22 @@ export function WorkspacePage() {
           console.warn('Auto open entry file:', e);
         }
       }
+    } else if (activeFileRef.current) {
+      // Revalidate active file content in background if empty or missing
+      const curActive = activeFileRef.current;
+      if (!fileContentsRef.current[curActive]) {
+        try {
+          const file = await readFileRequest(projectId, curActive);
+          if (file && file.content !== undefined) {
+            fileContentsRef.current[file.path] = file.content;
+            setOpenFiles((current) =>
+              current.map((f) => (f.path.toLowerCase() === file.path.toLowerCase() ? { ...f, path: file.path, content: file.content } : f))
+            );
+          }
+        } catch (e) {
+          console.warn('Background active file load:', e);
+        }
+      }
     }
   };
 
@@ -179,6 +217,24 @@ export function WorkspacePage() {
     }
     void loadWorkspace();
   }, [projectId]);
+
+  // Persist workspace state to localStorage for instantaneous re-entries and refresh recovery
+  useEffect(() => {
+    if (!projectId) return;
+    try {
+      const cacheData = {
+        project,
+        tree,
+        openFiles: openFiles.map((f) => ({
+          path: f.path,
+          content: fileContentsRef.current[f.path] ?? f.content ?? '',
+          dirty: Boolean(f.dirty)
+        })),
+        activeFile
+      };
+      localStorage.setItem(`skycode_ws_${projectId}`, JSON.stringify(cacheData));
+    } catch {}
+  }, [projectId, project, tree, openFiles, activeFile]);
 
   const updateOpenFile = (filePath, content, dirty = true) => {
     fileContentsRef.current[filePath] = content;
@@ -250,6 +306,19 @@ export function WorkspacePage() {
     );
     if (existing) {
       setActiveFile(existing.path);
+      if (!fileContentsRef.current[existing.path]) {
+        try {
+          const file = await readFileRequest(projectId, existing.path);
+          if (file && file.content !== undefined) {
+            fileContentsRef.current[file.path] = file.content;
+            setOpenFiles((current) =>
+              current.map((f) => (f.path.toLowerCase() === file.path.toLowerCase() ? { ...f, path: file.path, content: file.content } : f))
+            );
+          }
+        } catch (err) {
+          console.warn('Failed to fetch existing file content:', err);
+        }
+      }
       return;
     }
 
@@ -692,7 +761,7 @@ export function WorkspacePage() {
               <FileTabs
                 openFiles={openFiles.map((file) => file.path)}
                 activeFile={activeFile}
-                onSelect={setActiveFile}
+                onSelect={(p) => void openFile(p)}
                 onClose={(closedPath) =>
                   setOpenFiles((current) => {
                     const next = current.filter((file) => file.path !== closedPath);
