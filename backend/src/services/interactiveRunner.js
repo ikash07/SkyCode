@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import pLimit from 'p-limit';
 import { env } from '../config/env.js';
 import { executionsRoot } from '../utils/runtimePaths.js';
-import { copyDirectory, removeIfExists } from '../utils/fs.js';
+import { copyDirectory, removeIfExists, exists } from '../utils/fs.js';
 import { ensureLocalPythonDependencies, getPythonEnvironment } from '../utils/pythonPackages.js';
 import { ensureLocalNodeDependencies } from '../utils/nodePackages.js';
 import { ensureJavaJdk } from '../utils/javaSetup.js';

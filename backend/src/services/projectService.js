@@ -9,11 +9,32 @@ import { projectsRoot } from '../utils/runtimePaths.js';
 import { createTree } from '../utils/tree.js';
 import { normalizeRelativePath, getFileName, getPathParent } from '../utils/path.js';
 
+export async function ensureProjectFilesOnDisk(project) {
+  try {
+    await ensureDir(project.rootPath);
+    const files = await FileEntry.find({ projectId: project._id }).lean();
+    for (const entry of files) {
+      const fullPath = path.join(project.rootPath, entry.path);
+      if (entry.kind === 'directory') {
+        await ensureDir(fullPath).catch(() => {});
+      } else {
+        await ensureDir(path.dirname(fullPath)).catch(() => {});
+        if (!(await exists(fullPath))) {
+          await writeTextFile(fullPath, entry.content || '').catch(() => {});
+        }
+      }
+    }
+  } catch {
+    // Ignore sync errors
+  }
+}
+
 async function getOwnedProject(projectId, userId) {
   const project = await Project.findOne({ _id: projectId, ownerId: userId });
   if (!project) {
     throw new AppError('Project not found', 404);
   }
+  await ensureProjectFilesOnDisk(project);
   return project;
 }
 
