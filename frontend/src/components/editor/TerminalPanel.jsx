@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { runProjectRequest } from '../../api/projects';
+import { detectLanguageFromPath } from '../../utils/language';
 
 export const TerminalPanel = forwardRef(function TerminalPanel(
   {
@@ -47,8 +48,13 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
     }
   };
 
-  const startInteractiveExecution = (overrideFile = null) => {
+  const startInteractiveExecution = (overrideFile = null, overrideLanguage = null) => {
     const fileToRun = overrideFile || activeFile;
+    const effectiveLanguage =
+      overrideLanguage ||
+      (fileToRun ? detectLanguageFromPath(fileToRun) : language) ||
+      'python';
+
     if (!projectId || !fileToRun) {
       if (onRun) onRun(stdin);
       return;
@@ -78,7 +84,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
           type: 'start',
           projectId,
           entryFile: fileToRun,
-          language,
+          language: effectiveLanguage,
           token
         }));
       };
@@ -87,7 +93,13 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'started') {
-            const displayCmd = msg.command || (fileToRun ? `python -u ${fileToRun}` : 'run');
+            const defaultCmd = fileToRun
+              ? (effectiveLanguage === 'javascript' ? `node ${fileToRun}`
+                : effectiveLanguage === 'c' ? `gcc ${fileToRun} && ./a.out`
+                : effectiveLanguage === 'java' ? `javac ${fileToRun} && java Main`
+                : `python -u ${fileToRun}`)
+              : 'run';
+            const displayCmd = msg.command || defaultCmd;
             setHistory((prev) => [...prev, { type: 'command', content: `$ ${displayCmd}` }]);
           } else if (msg.type === 'stdout') {
             appendChunk(msg.data, 'stdout');
@@ -127,7 +139,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
         setRunningState(false);
         appendChunk('\n[Interactive terminal disconnected. Running via standard runner...]\n', 'info');
         try {
-          const resp = await runProjectRequest(projectId, fileToRun, language, stdin);
+          const resp = await runProjectRequest(projectId, fileToRun, effectiveLanguage, stdin);
           if (resp.result?.stdout) appendChunk(resp.result.stdout, 'stdout');
           if (resp.result?.stderr) appendChunk(resp.result.stderr, 'stderr');
           const sec = ((resp.execution?.durationMs || 0) / 1000).toFixed(2);
@@ -154,7 +166,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
   };
 
   useImperativeHandle(ref, () => ({
-    startInteractiveExecution: (file) => startInteractiveExecution(file),
+    startInteractiveExecution: (file, lang) => startInteractiveExecution(file, lang),
     stopExecution,
     clearTerminal: handleClear
   }));
@@ -203,14 +215,30 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
   };
 
   const handleContainerClick = () => {
+    // If user has selected text to copy, do not steal focus or clear selection
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+      return;
+    }
     if (inputRef.current) {
       inputRef.current.focus();
+    }
+  };
+
+  const handlePaste = (e) => {
+    const text = e.clipboardData?.getData('text/plain');
+    if (!text) return;
+    if (isRunning && socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      e.preventDefault();
+      appendChunk(text, 'stdin');
+      socketRef.current.send(JSON.stringify({ type: 'stdin', data: text }));
     }
   };
 
   return (
     <div
       onClick={handleContainerClick}
+      onPaste={handlePaste}
       className="flex h-full flex-col font-mono text-xs md:text-sm cursor-text overflow-hidden select-text"
       style={{
         background: '#000000',

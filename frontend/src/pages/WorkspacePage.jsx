@@ -279,9 +279,11 @@ export function WorkspacePage() {
     setIsTerminalVisible(true);
     setBottomTab('terminal');
 
+    const effectiveLanguage = targetFile ? detectLanguageFromPath(targetFile) : (projectRef.current?.language || 'python');
+
     // 4. Run immediately on 1st click
     if (terminalRef.current && terminalRef.current.startInteractiveExecution) {
-      terminalRef.current.startInteractiveExecution(targetFile);
+      terminalRef.current.startInteractiveExecution(targetFile, effectiveLanguage);
       return;
     }
 
@@ -294,7 +296,7 @@ export function WorkspacePage() {
       const response = await runProjectRequest(
         projectId,
         targetFile,
-        projectRef.current?.language || detectLanguageFromPath(targetFile),
+        effectiveLanguage,
         currentStdin
       );
       setLatestExecution(response.execution);
@@ -674,7 +676,13 @@ export function WorkspacePage() {
                 busy={busy}
                 projectId={projectId}
                 activeFile={activeFile || (tree && guessEntryFile(tree, project?.language ?? 'python'))}
-                language={project?.language}
+                language={
+                  activeFile
+                    ? detectLanguageFromPath(activeFile)
+                    : (tree && guessEntryFile(tree, project?.language ?? 'python')
+                      ? detectLanguageFromPath(guessEntryFile(tree, project?.language ?? 'python'))
+                      : (project?.language || 'python'))
+                }
                 onHide={() => setIsTerminalVisible(false)}
               />
             </div>
@@ -708,11 +716,14 @@ export function WorkspacePage() {
                 </button>
               )}
               <span>{
-                project.language === 'python' ? 'Python 3.11.6'
-                  : project.language === 'javascript' ? 'Node.js'
-                  : project.language === 'c' ? 'GCC C17'
-                  : project.language === 'java' ? 'JDK 21'
-                  : project.language?.toUpperCase() || 'UTF-8'
+                (() => {
+                  const currentLang = activeFile ? detectLanguageFromPath(activeFile) : (project.language || 'python');
+                  if (currentLang === 'python') return 'Python 3.11.6';
+                  if (currentLang === 'javascript') return 'Node.js';
+                  if (currentLang === 'c') return 'GCC C17';
+                  if (currentLang === 'java') return 'JDK 21';
+                  return currentLang.toUpperCase();
+                })()
               }</span>
               <span>UTF-8</span>
               <span>Spaces: 4</span>

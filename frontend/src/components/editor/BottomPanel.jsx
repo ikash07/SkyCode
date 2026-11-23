@@ -17,7 +17,7 @@ export const BottomPanel = forwardRef(function BottomPanel(
   const terminalPanelRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
-    startInteractiveExecution: (file) => terminalPanelRef.current?.startInteractiveExecution?.(file),
+    startInteractiveExecution: (file, lang) => terminalPanelRef.current?.startInteractiveExecution?.(file, lang),
     stopExecution: () => terminalPanelRef.current?.stopExecution?.(),
     clearTerminal: () => {
       terminalPanelRef.current?.clearTerminal?.();
@@ -31,7 +31,7 @@ export const BottomPanel = forwardRef(function BottomPanel(
     if (activeBusy) {
       terminalPanelRef.current?.stopExecution?.();
     } else {
-      terminalPanelRef.current?.startInteractiveExecution?.();
+      terminalPanelRef.current?.startInteractiveExecution?.(activeFile, language);
     }
   };
 

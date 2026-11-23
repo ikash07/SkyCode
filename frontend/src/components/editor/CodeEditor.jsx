@@ -91,7 +91,159 @@ export function CodeEditor({ filePath, value, onChange, fontSize = 14, theme = '
           };
         }
       });
+
+      monacoInstance.languages.registerCompletionItemProvider('javascript', {
+        provideCompletionItems: (model, position) => {
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: position.column,
+            endColumn: position.column
+          };
+
+          const snippetKind = monacoInstance.languages.CompletionItemKind
+            ? monacoInstance.languages.CompletionItemKind.Snippet
+            : 27;
+
+          return {
+            suggestions: [
+              {
+                label: 'clg',
+                insertText: 'console.log($1);',
+                kind: snippetKind,
+                range,
+                insertTextRules: 4
+              },
+              {
+                label: 'log',
+                insertText: 'console.log($1);',
+                kind: snippetKind,
+                range,
+                insertTextRules: 4
+              },
+              {
+                label: 'fn',
+                insertText: 'function $1($2) {\n  $3\n}',
+                kind: snippetKind,
+                range,
+                insertTextRules: 4
+              }
+            ]
+          };
+        }
+      });
     }
+
+    // Capture-phase clipboard handling for robust copy, cut, and paste
+    const domNode = editor.getDomNode();
+    if (domNode) {
+      domNode.addEventListener(
+        'paste',
+        (e) => {
+          const text = e.clipboardData?.getData('text/plain');
+          if (text !== undefined && text !== '') {
+            const selection = editor.getSelection();
+            if (selection) {
+              editor.executeEdits('clipboard-paste', [
+                {
+                  range: selection,
+                  text: text,
+                  forceMoveMarkers: true
+                }
+              ]);
+              editor.pushUndoStop();
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }
+        },
+        true
+      );
+
+      domNode.addEventListener(
+        'copy',
+        (e) => {
+          const selection = editor.getSelection();
+          if (selection && !selection.isEmpty()) {
+            const text = editor.getModel()?.getValueInRange(selection);
+            if (text && e.clipboardData) {
+              e.clipboardData.setData('text/plain', text);
+            }
+          }
+        },
+        true
+      );
+
+      domNode.addEventListener(
+        'cut',
+        (e) => {
+          const selection = editor.getSelection();
+          if (selection && !selection.isEmpty()) {
+            const text = editor.getModel()?.getValueInRange(selection);
+            if (text && e.clipboardData) {
+              e.clipboardData.setData('text/plain', text);
+              editor.executeEdits('clipboard-cut', [
+                {
+                  range: selection,
+                  text: '',
+                  forceMoveMarkers: true
+                }
+              ]);
+              editor.pushUndoStop();
+            }
+          }
+        },
+        true
+      );
+    }
+
+    // Explicit Monaco clipboard actions for Ctrl/Cmd+V and Ctrl/Cmd+C
+    editor.addAction({
+      id: 'skycode-paste-action',
+      label: 'Paste from Clipboard',
+      keybindings: [monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyV],
+      run: async () => {
+        try {
+          if (navigator.clipboard && navigator.clipboard.readText) {
+            const text = await navigator.clipboard.readText();
+            if (text) {
+              const selection = editor.getSelection();
+              if (selection) {
+                editor.executeEdits('skycode-paste', [
+                  {
+                    range: selection,
+                    text: text,
+                    forceMoveMarkers: true
+                  }
+                ]);
+                editor.pushUndoStop();
+              }
+            }
+          }
+        } catch {
+          // Native paste event handler catches it if browser blocks async readText
+        }
+      }
+    });
+
+    editor.addAction({
+      id: 'skycode-copy-action',
+      label: 'Copy to Clipboard',
+      keybindings: [monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyC],
+      run: async () => {
+        try {
+          const selection = editor.getSelection();
+          if (selection && !selection.isEmpty()) {
+            const text = editor.getModel()?.getValueInRange(selection);
+            if (text && navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(text);
+            }
+          }
+        } catch {
+          // Handled by native copy event
+        }
+      }
+    });
 
     editor.onDidChangeModelContent(() => {
       const currentValue = editor.getModel()?.getValue() ?? '';

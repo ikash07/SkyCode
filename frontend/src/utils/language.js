@@ -1,32 +1,36 @@
 export function detectLanguageFromPath(filePath) {
-  if (filePath.endsWith('.py')) return 'python';
-  if (filePath.endsWith('.c')) return 'c';
-  if (filePath.endsWith('.java')) return 'java';
+  if (!filePath || typeof filePath !== 'string') return 'python';
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith('.py')) return 'python';
+  if (lower.endsWith('.c') || lower.endsWith('.h')) return 'c';
+  if (lower.endsWith('.java')) return 'java';
   if (
-    filePath.endsWith('.js') ||
-    filePath.endsWith('.jsx') ||
-    filePath.endsWith('.ts') ||
-    filePath.endsWith('.tsx') ||
-    filePath.endsWith('.mjs') ||
-    filePath.endsWith('.cjs')
+    lower.endsWith('.js') ||
+    lower.endsWith('.jsx') ||
+    lower.endsWith('.ts') ||
+    lower.endsWith('.tsx') ||
+    lower.endsWith('.mjs') ||
+    lower.endsWith('.cjs')
   ) return 'javascript';
   return 'python';
 }
 
 export function editorLanguage(filePath) {
-  if (filePath.endsWith('.py')) return 'python';
-  if (filePath.endsWith('.c') || filePath.endsWith('.h')) return 'c';
-  if (filePath.endsWith('.java')) return 'java';
-  if (filePath.endsWith('.js') || filePath.endsWith('.jsx') || filePath.endsWith('.mjs') || filePath.endsWith('.cjs')) return 'javascript';
-  if (filePath.endsWith('.ts') || filePath.endsWith('.tsx')) return 'typescript';
-  if (filePath.endsWith('.json')) return 'json';
-  if (filePath.endsWith('.html') || filePath.endsWith('.htm')) return 'html';
-  if (filePath.endsWith('.css')) return 'css';
-  if (filePath.endsWith('.md')) return 'markdown';
-  if (filePath.endsWith('.xml')) return 'xml';
-  if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) return 'yaml';
-  if (filePath.endsWith('.sh') || filePath.endsWith('.bash')) return 'shell';
-  if (filePath.endsWith('.sql')) return 'sql';
+  if (!filePath || typeof filePath !== 'string') return 'plaintext';
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith('.py')) return 'python';
+  if (lower.endsWith('.c') || lower.endsWith('.h')) return 'c';
+  if (lower.endsWith('.java')) return 'java';
+  if (lower.endsWith('.js') || lower.endsWith('.jsx') || lower.endsWith('.mjs') || lower.endsWith('.cjs')) return 'javascript';
+  if (lower.endsWith('.ts') || lower.endsWith('.tsx')) return 'typescript';
+  if (lower.endsWith('.json')) return 'json';
+  if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'html';
+  if (lower.endsWith('.css')) return 'css';
+  if (lower.endsWith('.md')) return 'markdown';
+  if (lower.endsWith('.xml')) return 'xml';
+  if (lower.endsWith('.yaml') || lower.endsWith('.yml')) return 'yaml';
+  if (lower.endsWith('.sh') || lower.endsWith('.bash')) return 'shell';
+  if (lower.endsWith('.sql')) return 'sql';
   return 'plaintext';
 }
 
