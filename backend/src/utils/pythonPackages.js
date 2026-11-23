@@ -269,13 +269,12 @@ __version__ = '0.2.14'
 
 /**
  * Universal sitecustomize.py cloud bridge.
- * Executed automatically by Python on startup to configure headless plotting,
- * browser open bridging, and on-demand runtime module auto-installation.
+ * Executed automatically by Python on startup to configure headless plotting
+ * and browser open bridging.
  */
 const SITECUSTOMIZE_CODE = `# SkyCode Cloud Runtime Environment Initializer
 import sys
 import os
-import subprocess
 
 # 1. Headless Matplotlib configuration
 try:
@@ -296,45 +295,6 @@ try:
     webbrowser.open = _skycode_open
 except Exception:
     pass
-
-# 3. Dynamic On-Demand Importer Hook (installs missing packages on the fly at runtime)
-class SkyCodeOnDemandImporter:
-    _installing = set()
-
-    def find_spec(self, fullname, path, target=None):
-        top_name = fullname.split('.')[0]
-        if top_name in self._installing:
-            return None
-
-        # Check if already in standard lib or installed
-        import importlib.util
-        try:
-            spec = importlib.util.find_spec(top_name)
-            if spec is not None:
-                return None
-        except Exception:
-            pass
-
-        # Package is missing; attempt on-the-fly auto-install
-        self._installing.add(top_name)
-        try:
-            print(f"\\r\\n[SkyCode] Auto-installing missing module '{top_name}'...\\r\\n", flush=True)
-            res = subprocess.run(
-                [sys.executable, '-m', 'pip', 'install', top_name, '--user', '--break-system-packages', '--quiet'],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=45
-            )
-            if res.returncode == 0:
-                print(f"[SkyCode] Module '{top_name}' ready.\\r\\n", flush=True)
-                return importlib.util.find_spec(fullname)
-        except Exception:
-            pass
-        finally:
-            self._installing.discard(top_name)
-        return None
-
-sys.meta_path.append(SkyCodeOnDemandImporter())
 `;
 
 /**
