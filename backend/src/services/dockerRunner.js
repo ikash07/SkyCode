@@ -8,6 +8,7 @@ import { cacheRoot, executionsRoot } from '../utils/runtimePaths.js';
 import { copyDirectory, exists, removeIfExists } from '../utils/fs.js';
 import { detectPythonDependencies, ensureLocalPythonDependencies, getPythonEnvironment } from '../utils/pythonPackages.js';
 import { ensureLocalNodeDependencies } from '../utils/nodePackages.js';
+import { ensureJavaJdk } from '../utils/javaSetup.js';
 
 const concurrencyLimiter = pLimit(10);
 let dockerAvailableCache = null;
@@ -232,9 +233,88 @@ async function runLocalC(snapshotRoot, entryFile = '', stdin = '') {
   }
 }
 
+async function getCppSourceFilesToCompile(snapshotRoot, entryFile) {
+  const targetEntry = path.join(snapshotRoot, entryFile || '');
+  const sourceFiles = await fs.readdir(snapshotRoot, { recursive: true }).catch(() => []);
+  const cppFiles = sourceFiles
+    .filter((file) => {
+      const s = file.toString().toLowerCase();
+      return s.endsWith('.cpp') || s.endsWith('.cc') || s.endsWith('.cxx');
+    })
+    .map((file) => path.join(snapshotRoot, file.toString()));
+
+  if (cppFiles.length <= 1) {
+    return cppFiles.length === 1 ? cppFiles : [targetEntry];
+  }
+
+  const filesToCompile = [];
+  for (const file of cppFiles) {
+    if (path.normalize(file) === path.normalize(targetEntry)) {
+      filesToCompile.push(file);
+      continue;
+    }
+    try {
+      const content = await fs.readFile(file, 'utf8');
+      const hasMain = /^\s*(int|void)\s+main\s*\(/m.test(content);
+      if (!hasMain) {
+        filesToCompile.push(file);
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  return filesToCompile.length > 0 ? filesToCompile : [targetEntry];
+}
+
+async function runLocalCpp(snapshotRoot, entryFile = '', stdin = '') {
+  const cppFiles = await getCppSourceFilesToCompile(snapshotRoot, entryFile);
+  if (cppFiles.length === 0) {
+    return {
+      stdout: '',
+      stderr: 'No C++ source files found (.cpp, .cc)',
+      exitCode: 1,
+      timedOut: false,
+      command: 'g++',
+      workingDirectory: snapshotRoot
+    };
+  }
+
+  const outputBinary = path.join(snapshotRoot, process.platform === 'win32' ? 'program.exe' : 'program');
+  const relativeFiles = cppFiles.map((f) => path.relative(snapshotRoot, f));
+  try {
+    const compile = await runProcess('g++', [...cppFiles, '-o', outputBinary, '-O0', '-std=c++17'], env.DOCKER_EXECUTION_TIMEOUT_SECONDS);
+    if (compile.exitCode !== 0) {
+      return {
+        stdout: compile.stdout,
+        stderr: compile.stderr,
+        exitCode: compile.exitCode,
+        timedOut: compile.timedOut,
+        command: `g++ ${relativeFiles.join(' ')} -o ${path.basename(outputBinary)}`,
+        workingDirectory: snapshotRoot
+      };
+    }
+
+    const runBinary = await runProcess(outputBinary, [], env.DOCKER_EXECUTION_TIMEOUT_SECONDS, stdin);
+    return {
+      ...runBinary,
+      command: path.basename(outputBinary),
+      workingDirectory: snapshotRoot
+    };
+  } catch (err) {
+    return {
+      stdout: '',
+      stderr: `Failed to compile/run C++ locally: ${err.message}. Make sure G++ is installed and in PATH.`,
+      exitCode: 1,
+      timedOut: false,
+      command: 'g++',
+      workingDirectory: snapshotRoot
+    };
+  }
+}
+
 async function runLocalJava(snapshotRoot, entryFile, stdin = '') {
-  const javaCommand = 'java';
-  const javacCommand = 'javac';
+  const { javac: javacCommand, java: javaCommand } = await ensureJavaJdk();
   const sourceFiles = await fs.readdir(snapshotRoot, { recursive: true }).catch(() => []);
   const javaFiles = sourceFiles.filter((file) => file.toString().endsWith('.java'));
   if (javaFiles.length === 0) {
@@ -453,6 +533,10 @@ export async function executeInDocker(input) {
 
       if (input.language === 'python') {
         return await buildPythonRun(snapshotRoot, input.entryFile, input.stdin ?? '');
+      }
+
+      if (input.language === 'cpp') {
+        return await runLocalCpp(snapshotRoot, input.entryFile, input.stdin ?? '');
       }
 
       if (input.language === 'c') {
