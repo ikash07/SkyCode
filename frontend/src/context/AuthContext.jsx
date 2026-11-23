@@ -31,7 +31,7 @@ export function AuthProvider({ children }) {
 
     // Keep Render backend awake while browser tab is open
     const keepAlive = setInterval(() => {
-      fetch('/api/health').catch(() => {});
+      fetch('https://skycode-t3ry.onrender.com/api/health').catch(() => {});
     }, 4 * 60 * 1000);
     return () => clearInterval(keepAlive);
   }, []);
