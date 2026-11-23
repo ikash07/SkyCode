@@ -30,6 +30,8 @@ export const BottomPanel = memo(forwardRef(function BottomPanel(
   const handleRun = () => {
     if (activeBusy) {
       terminalPanelRef.current?.stopExecution?.();
+    } else if (onRun) {
+      onRun();
     } else {
       terminalPanelRef.current?.startInteractiveExecution?.(activeFile, language);
     }

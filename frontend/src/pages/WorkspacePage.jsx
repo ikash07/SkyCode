@@ -280,28 +280,78 @@ export function WorkspacePage() {
   const runActiveFile = async (overrideStdin = null) => {
     if (!projectId) return;
 
-    // 1. Resolve entry file immediately
-    const targetFile = activeFileRef.current || activeFile || guessEntryFile(tree, projectRef.current?.language ?? 'python');
+    // 1. Resolve target file
+    const rawTarget = activeFileRef.current || activeFile || guessEntryFile(tree, projectRef.current?.language ?? 'python');
+    if (!rawTarget) return;
+
+    const cleanPath = (p) => (p ? p.trim().replace(/^['"]|['"]$/g, '').replace(/^\.\//, '').replace(/^\/+/, '') : '');
+    let targetFile = cleanPath(rawTarget);
+
     if (!activeFile && targetFile) {
       setActiveFile(targetFile);
     }
 
-    // 2. Save any dirty/unsaved edits immediately before executing so backend runs latest code
-    const fileToSave = targetFile || activeFileRef.current;
-    if (fileToSave) {
-      const currentDoc = openFilesRef.current.find((f) => f.path === fileToSave);
-      if (currentDoc && currentDoc.dirty) {
-        await saveFile(fileToSave);
+    // 2. Find exact canonical node in tree (case-insensitive lookup to handle OS/casing discrepancies)
+    let canonicalTarget = targetFile;
+    const findExactNode = (nodes, p) => {
+      if (!nodes || !p) return null;
+      const lower = p.toLowerCase();
+      for (const n of nodes) {
+        if (n.path && cleanPath(n.path).toLowerCase() === lower) return cleanPath(n.path);
+        if (n.children) {
+          const res = findExactNode(n.children, p);
+          if (res) return res;
+        }
       }
+      return null;
+    };
+    if (tree) {
+      const matched = findExactNode(tree, targetFile);
+      if (matched) canonicalTarget = matched;
     }
 
     // 3. Make terminal visible and switch tab
     setIsTerminalVisible(true);
     setBottomTab('terminal');
 
-    const effectiveLanguage = targetFile ? detectLanguageFromPath(targetFile) : (projectRef.current?.language || 'python');
+    // 4. Retrieve latest content
+    const contentToSave =
+      fileContentsRef.current[targetFile] ??
+      fileContentsRef.current[canonicalTarget] ??
+      openFilesRef.current.find((f) => cleanPath(f.path).toLowerCase() === targetFile.toLowerCase())?.content ??
+      '';
 
-    // 4. Ensure Node.js projects support CommonJS require()
+    // 5. ALWAYS persist target file to backend disk before executing!
+    // Guarantees the file exists on Render container disk even after container restarts or sleep!
+    try {
+      await saveFileRequest(projectId, canonicalTarget, contentToSave);
+      const lowerTarget = canonicalTarget.toLowerCase();
+      if (lowerTarget !== canonicalTarget) {
+        try { await saveFileRequest(projectId, lowerTarget, contentToSave); } catch {}
+      }
+      if (targetFile.toLowerCase() !== canonicalTarget.toLowerCase()) {
+        try { await saveFileRequest(projectId, targetFile, contentToSave); } catch {}
+      }
+
+      // Also persist any other dirty open files
+      for (const doc of openFilesRef.current) {
+        if (doc.dirty && cleanPath(doc.path).toLowerCase() !== canonicalTarget.toLowerCase()) {
+          const docContent = fileContentsRef.current[doc.path] ?? doc.content;
+          if (docContent !== undefined) {
+            try { await saveFileRequest(projectId, doc.path, docContent); } catch {}
+          }
+        }
+      }
+
+      // Mark all open files clean
+      setOpenFiles((current) => current.map((f) => ({ ...f, dirty: false })));
+    } catch (err) {
+      console.warn('Pre-execution save failed:', err);
+    }
+
+    const effectiveLanguage = detectLanguageFromPath(canonicalTarget) || (projectRef.current?.language || 'python');
+
+    // 6. Ensure Node.js projects support CommonJS require()
     if (effectiveLanguage === 'javascript' && tree) {
       const hasPackageJson = (function checkPkg(nodes) {
         for (const n of nodes) {
@@ -325,13 +375,11 @@ export function WorkspacePage() {
       }
     }
 
-    // 5. Run immediately on 1st click
+    // 7. Run immediately in interactive terminal
     if (terminalRef.current && terminalRef.current.startInteractiveExecution) {
-      terminalRef.current.startInteractiveExecution(targetFile, effectiveLanguage);
+      terminalRef.current.startInteractiveExecution(canonicalTarget, effectiveLanguage);
       return;
     }
-
-    if (!targetFile) return;
 
     const currentStdin = overrideStdin !== null ? overrideStdin : stdin;
 
@@ -339,7 +387,7 @@ export function WorkspacePage() {
     try {
       const response = await runProjectRequest(
         projectId,
-        targetFile,
+        canonicalTarget,
         effectiveLanguage,
         currentStdin
       );

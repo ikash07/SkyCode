@@ -49,7 +49,8 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
   };
 
   const startInteractiveExecution = (overrideFile = null, overrideLanguage = null) => {
-    const fileToRun = overrideFile || activeFile;
+    const rawFile = overrideFile || activeFile || '';
+    const fileToRun = rawFile.trim().replace(/^['"]|['"]$/g, '').replace(/^\.\//, '').replace(/^\/+/, '');
     const effectiveLanguage =
       overrideLanguage ||
       (fileToRun ? detectLanguageFromPath(fileToRun) : language) ||
@@ -206,7 +207,11 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
         socketRef.current.send(JSON.stringify({ type: 'stdin', data: `${rawValue}\n` }));
       } else {
         setHistory((prev) => [...prev, { type: 'prompt_line', prompt: 'skycode@workspace:~/my-app$ ', cmd: rawValue }]);
-        startInteractiveExecution();
+        if (onRun) {
+          onRun();
+        } else {
+          startInteractiveExecution();
+        }
       }
     }
   };
