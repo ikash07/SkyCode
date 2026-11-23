@@ -17,7 +17,8 @@ async function isDockerAvailable() {
     return dockerAvailableCache;
   }
   try {
-    const result = await runProcess('docker', ['--version'], 2);
+    // Must test 'docker info' to verify Docker daemon is running, not just client binary
+    const result = await runProcess('docker', ['info'], 1);
     dockerAvailableCache = result.exitCode === 0 && !isDockerFailure(result);
   } catch {
     dockerAvailableCache = false;
