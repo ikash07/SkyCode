@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import { runProjectRequest } from '../../api/projects';
 
 export const TerminalPanel = forwardRef(function TerminalPanel(
   {
@@ -122,17 +123,26 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
         }
       };
 
-      ws.onerror = () => {
+      ws.onerror = async () => {
         setRunningState(false);
-        if (onRun) onRun(stdin);
+        appendChunk('\n[Interactive terminal disconnected. Running via standard runner...]\n', 'info');
+        try {
+          const resp = await runProjectRequest(projectId, fileToRun, language, stdin);
+          if (resp.result?.stdout) appendChunk(resp.result.stdout, 'stdout');
+          if (resp.result?.stderr) appendChunk(resp.result.stderr, 'stderr');
+          const sec = ((resp.execution?.durationMs || 0) / 1000).toFixed(2);
+          appendChunk(`\n[Done] exited with code=${resp.execution?.exitCode ?? 0} in ${sec}s\n`, 'info');
+        } catch (err) {
+          appendChunk(`\nExecution error: ${err.message}\n`, 'stderr');
+        }
       };
 
       ws.onclose = () => {
         setRunningState(false);
       };
-    } catch {
+    } catch (e) {
       setRunningState(false);
-      if (onRun) onRun(stdin);
+      appendChunk(`\nConnection error: ${e.message}\n`, 'stderr');
     }
   };
 

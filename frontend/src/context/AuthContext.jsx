@@ -28,6 +28,12 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     void refresh();
+
+    // Keep Render backend awake while browser tab is open
+    const keepAlive = setInterval(() => {
+      fetch('/api/health').catch(() => {});
+    }, 4 * 60 * 1000);
+    return () => clearInterval(keepAlive);
   }, []);
 
   const value = useMemo(() => ({

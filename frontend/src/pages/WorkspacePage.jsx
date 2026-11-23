@@ -126,6 +126,47 @@ export function WorkspacePage() {
     setProject(nextProject);
     setTree(nextTree);
     setLatestExecution(history[0] ?? null);
+
+    let treeFiles = nextTree;
+    // Auto-create starter file if project has no files
+    if (nextTree.length === 0 && nextProject) {
+      const defaultEntryMap = {
+        python: 'main.py',
+        javascript: 'index.js',
+        c: 'main.c',
+        java: 'Main.java'
+      };
+      const defaultContentMap = {
+        python: 'print("Hello from SkyCode!")\n',
+        javascript: 'console.log("Hello from SkyCode!");\n',
+        c: '#include <stdio.h>\n\nint main() {\n    printf("Hello from SkyCode!\\n");\n    return 0;\n}\n',
+        java: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello from SkyCode!");\n    }\n}\n'
+      };
+      const lang = nextProject.language || 'python';
+      const initialFile = defaultEntryMap[lang] || 'main.py';
+      const initialContent = defaultContentMap[lang] || 'print("Hello from SkyCode!")\n';
+      try {
+        await saveFileRequest(projectId, initialFile, initialContent);
+        treeFiles = await treeRequest(projectId);
+        setTree(treeFiles);
+      } catch (err) {
+        console.warn('Initial starter file setup:', err);
+      }
+    }
+
+    // Auto-open entry file so the editor canvas is never blank
+    if (!activeFileRef.current && treeFiles.length > 0) {
+      const preferred = guessEntryFile(treeFiles, nextProject?.language ?? 'python');
+      if (preferred) {
+        try {
+          const file = await readFileRequest(projectId, preferred);
+          setOpenFiles([{ path: file.path, content: file.content, dirty: false }]);
+          setActiveFile(file.path);
+        } catch (e) {
+          console.warn('Auto open entry file:', e);
+        }
+      }
+    }
   };
 
   useEffect(() => {

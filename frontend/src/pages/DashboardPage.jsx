@@ -52,6 +52,7 @@ export function DashboardPage() {
   const navigate = useNavigate();
 
   const [projects, setProjects] = useState([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [language, setLanguage] = useState('python');
@@ -59,8 +60,15 @@ export function DashboardPage() {
   const [error, setError] = useState(null);
 
   const loadProjects = async () => {
-    try { setProjects(await listProjectsRequest()); }
-    catch (err) { console.error(err); }
+    setLoadingProjects(true);
+    try {
+      const data = await listProjectsRequest();
+      setProjects(data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingProjects(false);
+    }
   };
 
   useEffect(() => { void loadProjects(); }, []);
@@ -214,7 +222,7 @@ export function DashboardPage() {
 
         {/* ── Stats row ── */}
         <div className="grid grid-cols-3 gap-4 sm:gap-6">
-          <StatCard value={projects.length} label="Projects" color="#FFD93D" rotate={-1} />
+          <StatCard value={loadingProjects ? '…' : projects.length} label="Projects" color="#FFD93D" rotate={-1} />
           <StatCard value="28" label="Runs" color="#C4B5FD" rotate={0.5} />
           <StatCard value="99.9%" label="Uptime" color="#6BCB77" rotate={-0.5} />
         </div>
@@ -355,7 +363,23 @@ export function DashboardPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto max-h-[400px]">
-              {projects.length === 0 ? (
+              {loadingProjects ? (
+                <div className="flex h-48 flex-col items-center justify-center gap-3 p-6 text-center">
+                  <div
+                    className="mx-auto flex h-10 w-10 items-center justify-center overflow-hidden"
+                    style={{
+                      background: '#280736',
+                      border: '2px solid #000',
+                      boxShadow: '3px 3px 0px 0px #000',
+                    }}
+                  >
+                    <img src="/logo-icon.png" alt="" className="h-full w-full object-cover animate-pulse" />
+                  </div>
+                  <p className="font-black text-xs uppercase tracking-widest" style={{ color: 'var(--color-muted)' }}>
+                    Loading Projects…
+                  </p>
+                </div>
+              ) : projects.length === 0 ? (
                 <div className="flex h-48 flex-col items-center justify-center gap-3 p-6 text-center">
                   <div
                     style={{

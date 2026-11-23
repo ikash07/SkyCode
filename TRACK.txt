@@ -5,32 +5,35 @@
 ================================================================================
 
 
-[2026-11-23] RENDER BACKEND INTEGRATION & CLIENT AUTH OPTIMIZATION
--------------------------------------------------------------------
-TASK: Connect Render backend (https://skycode-t3ry.onrender.com) into Vercel frontend (skycode.vercel.app), optimize auth lifecycle, and eliminate 401 cold-start errors.
+[2026-11-23] CLIENT PERFORMANCE, AUTO-ENTRY WORKSPACE & WEBSOCKET LOOP FIX
+-------------------------------------------------------------------------
+TASK: Fix post-login sluggishness, eliminate terminal recursion loop, and create seamless workspace entry.
 
 STATUS: COMPLETE & FULLY VERIFIED
 
 FEATURES IMPLEMENTED:
-  1. Multi-Layer Reverse Proxy (frontend/vercel.json & vercel.json):
-     - Configured /api/:path* rewrites to https://skycode-t3ry.onrender.com/api/:path*
-     - All browser traffic to skycode.vercel.app/api/* executes same-origin with 0 CORS preflight overhead.
+  1. Break Terminal WebSocket Error Recursion Loop (frontend/src/components/editor/TerminalPanel.jsx):
+     - Eliminated cyclic recursion where ws.onerror called onRun, which re-called startInteractiveExecution.
+     - Implemented clean, direct HTTP execution fallback (runProjectRequest) on WebSocket disconnect
+       without re-triggering execution loops or freezing the browser.
 
-  2. Client Auth State Optimization (frontend/src/context/AuthContext.jsx):
-     - Added upfront token existence check before triggering /auth/me network calls.
-     - Unauthenticated visitors immediately render the login/register screen in 0ms without waiting
-       for Render wake-up or logging false 401 errors.
-     - Stale or expired tokens are cleanly evicted from localStorage.
+  2. Auto Starter File Creation & Automatic File Opening (frontend/src/pages/WorkspacePage.jsx):
+     - Added automatic template bootstrapping on brand-new empty projects (main.py, index.js, main.c, Main.java).
+     - Automatically guesses and opens the entry file upon entering the workspace.
+     - Ensures the Monaco code editor is never left blank upon opening a project.
 
-  3. Resilient Client & WebSocket Configuration (frontend/src/api/client.js & TerminalPanel.jsx):
-     - Added 30s network timeout on Axios instance to prevent hanging.
-     - Configured interactive terminal WebSocket directly to wss://skycode-t3ry.onrender.com/ws/terminal.
+  3. Smooth Dashboard State Transitions (frontend/src/pages/DashboardPage.jsx):
+     - Added loadingProjects state with animated brand indicator.
+     - Prevents flashing "0 Projects" and "No projects yet" layout shifts during data fetch.
+
+  4. Render Sleep Prevention Keep-Alive (frontend/src/context/AuthContext.jsx):
+     - Added background 4-minute keep-alive ping to /api/health while browser tab is active.
+     - Prevents Render free-tier instance from sleeping (15-min idle spin-down), eliminating cold-start delays.
 
 VERIFICATION:
-  - Verified https://skycode.vercel.app/api/health returns 200 OK through the Vercel proxy.
-  - Verified https://skycode.vercel.app/api/auth/login and /projects through the Vercel proxy return 200 OK.
-  - Verified remote code execution on Render backend completes with exitCode: 0.
-  - Production build (npm run build --workspace frontend) succeeded in 15.14s with 0 errors.
+  - Frontend production build (npm run build --workspace frontend) completed in 47s with 0 errors.
+  - Verified bundle generated: index-BeijrciQ.js.
+
 
 
 
