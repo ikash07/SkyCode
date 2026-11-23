@@ -833,11 +833,11 @@ export function WorkspacePage() {
       {/* Path Dialog Modal */}
       {pathDialog ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.75)' }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-200"
+          style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
         >
           <div
-            className="w-full max-w-md"
+            className="w-full max-w-md nb-modal-anim"
             style={{
               background: 'var(--color-panel)',
               border: '3px solid var(--color-border)',

@@ -20,23 +20,15 @@ export const FileTabs = memo(function FileTabs({ openFiles, activeFile, onSelect
           <button
             key={filePath}
             onClick={() => onSelect(filePath)}
-            className="group flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-all duration-100 shrink-0"
-            style={
-              isSelected
-                ? {
-                    background: '#FFD93D',
-                    border: '2px solid #000',
-                    boxShadow: '3px 3px 0px 0px #000',
-                    color: '#000',
-                    transform: 'translate(-1px, -1px)',
-                  }
-                : {
-                    background: 'var(--color-panel)',
-                    border: '2px solid var(--color-border)',
-                    boxShadow: '2px 2px 0px 0px var(--color-border)',
-                    color: 'var(--color-muted)',
-                  }
-            }
+            className="group flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wide shrink-0 nb-tab-anim active:translate-x-[1px] active:translate-y-[1px]"
+            style={{
+              background: isSelected ? '#FFD93D' : 'var(--color-panel)',
+              border: isSelected ? '2px solid #000' : '2px solid var(--color-border)',
+              boxShadow: isSelected ? '3px 3px 0px 0px #000' : '2px 2px 0px 0px var(--color-border)',
+              color: isSelected ? '#000' : 'var(--color-muted)',
+              transform: isSelected ? 'translate(-1px, -1px)' : 'none',
+              transition: 'all 0.16s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
           >
             {isCode
               ? <FileCode size={13} strokeWidth={3} />

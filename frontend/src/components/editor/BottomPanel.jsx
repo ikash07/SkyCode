@@ -67,9 +67,9 @@ export const BottomPanel = memo(forwardRef(function BottomPanel(
                 key={tab.id}
                 id={`bottom-tab-${tab.id}`}
                 onClick={() => onTabChange(tab.id)}
-                className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-black uppercase tracking-wider transition-all duration-100"
-                style={
-                  isActive
+                className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-black uppercase tracking-wider active:translate-x-[1px] active:translate-y-[1px]"
+                style={{
+                  ...(isActive
                     ? {
                         background: '#FFD93D',
                         color: '#000',
@@ -80,8 +80,9 @@ export const BottomPanel = memo(forwardRef(function BottomPanel(
                         background: 'transparent',
                         color: 'var(--color-muted)',
                         border: '2px solid transparent',
-                      }
-                }
+                      }),
+                  transition: 'all 0.16s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
               >
                 <Icon size={12} strokeWidth={2.5} />
                 <span>{tab.label}</span>

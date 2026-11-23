@@ -310,6 +310,8 @@ export const CodeEditor = memo(function CodeEditor({ filePath, value, onChange, 
         smoothScrolling: true,
         automaticLayout: true,
         mouseWheelZoom: true,
+        mouseWheelScrollSensitivity: 1.2,
+        fastScrollSensitivity: 6,
         tabSize: 4,
         padding: { top: 12 },
         scrollBeyondLastLine: false,
@@ -318,7 +320,12 @@ export const CodeEditor = memo(function CodeEditor({ filePath, value, onChange, 
         wordWrap: 'on',
         renderValidationDecorations: 'editable',
         quickSuggestions: { other: true, comments: false, strings: false },
-        cursorBlinking: 'smooth'
+        cursorBlinking: 'smooth',
+        cursorSmoothCaretAnimation: 'on',
+        scrollbar: {
+          verticalScrollbarSize: 8,
+          horizontalScrollbarSize: 8
+        }
       }}
     />
   );

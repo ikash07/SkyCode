@@ -62,18 +62,15 @@ const TreeRow = memo(function TreeRow({ node, activeFile, onOpen, onRename, onDe
   return (
     <button
       onClick={() => onOpen(node.path)}
-      className="group flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-xs font-bold uppercase tracking-wide transition-all duration-100"
-      style={
-        selected
-          ? {
-              background: '#FFD93D',
-              color: '#000',
-              border: '2px solid #000',
-              boxShadow: '3px 3px 0px 0px #000',
-              transform: 'translate(-1px,-1px)',
-            }
-          : { color: 'var(--color-text)' }
-      }
+      className="group flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-xs font-bold uppercase tracking-wide cursor-pointer active:scale-[0.99]"
+      style={{
+        background: selected ? '#FFD93D' : 'transparent',
+        color: selected ? '#000' : 'var(--color-text)',
+        border: selected ? '2px solid #000' : '2px solid transparent',
+        boxShadow: selected ? '3px 3px 0px 0px #000' : 'none',
+        transform: selected ? 'translate(-1px,-1px)' : 'none',
+        transition: 'all 0.16s cubic-bezier(0.16, 1, 0.3, 1)',
+      }}
       onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = 'var(--color-surface)'; }}
       onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
     >
