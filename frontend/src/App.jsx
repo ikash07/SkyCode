@@ -81,7 +81,7 @@ export default function App() {
                 boxShadow: '4px 4px 0px 0px #000',
               }}
             >
-              <img src="/logo-icon.png" alt="SkyCode" className="w-full h-full object-cover" />
+              <img src="/logo-icon.png" alt="SkyCode" width={60} height={60} fetchPriority="high" className="w-full h-full object-cover" />
             </div>
             <div className="text-2xl font-black uppercase tracking-tight text-black">SkyCode</div>
             <div className="text-xs font-black uppercase tracking-widest text-black/75">Online IDE</div>
