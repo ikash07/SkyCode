@@ -4,13 +4,26 @@ import { loginRequest, logoutRequest, meRequest, registerRequest } from '../api/
 const AuthContext = createContext(undefined);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('skycode_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [loading, setLoading] = useState(() => {
+    const token = localStorage.getItem('skycode_token');
+    const saved = localStorage.getItem('skycode_user');
+    return Boolean(token && !saved);
+  });
 
   const refresh = async () => {
     const token = localStorage.getItem('skycode_token');
     if (!token) {
       setUser(null);
+      try { localStorage.removeItem('skycode_user'); } catch {}
       setLoading(false);
       return;
     }
@@ -18,8 +31,10 @@ export function AuthProvider({ children }) {
     try {
       const currentUser = await meRequest();
       setUser(currentUser);
+      try { localStorage.setItem('skycode_user', JSON.stringify(currentUser)); } catch {}
     } catch {
       localStorage.removeItem('skycode_token');
+      try { localStorage.removeItem('skycode_user'); } catch {}
       setUser(null);
     } finally {
       setLoading(false);
@@ -42,13 +57,17 @@ export function AuthProvider({ children }) {
     login: async (email, password) => {
       const currentUser = await loginRequest({ email, password });
       setUser(currentUser);
+      try { localStorage.setItem('skycode_user', JSON.stringify(currentUser)); } catch {}
     },
     register: async (email, password, displayName) => {
       const currentUser = await registerRequest({ email, password, displayName });
       setUser(currentUser);
+      try { localStorage.setItem('skycode_user', JSON.stringify(currentUser)); } catch {}
     },
     logout: async () => {
       await logoutRequest();
+      localStorage.removeItem('skycode_token');
+      try { localStorage.removeItem('skycode_user'); } catch {}
       setUser(null);
     },
     refresh
