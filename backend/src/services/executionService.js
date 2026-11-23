@@ -27,6 +27,10 @@ function buildCommand(language, entryFile) {
     return `gcc $(find . -name "*.c" -print) -o /tmp/program -O2 -std=c17 -Wall -Wextra -lm -lpthread -lcurl -lsqlite3 -lssl -lcrypto -lz && /tmp/program`;
   }
 
+  if (language === 'cpp') {
+    return `g++ $(find . -name "*.cpp" -o -name "*.cc" -print) -o /tmp/program -O2 -std=c++17 -Wall -Wextra -lm -lpthread && /tmp/program`;
+  }
+
   return `java ${path.basename(entryFile, '.java')}`;
 }
 

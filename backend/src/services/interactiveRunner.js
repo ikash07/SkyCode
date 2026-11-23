@@ -8,6 +8,7 @@ import { executionsRoot } from '../utils/runtimePaths.js';
 import { copyDirectory, removeIfExists } from '../utils/fs.js';
 import { ensureLocalPythonDependencies, getPythonEnvironment } from '../utils/pythonPackages.js';
 import { ensureLocalNodeDependencies } from '../utils/nodePackages.js';
+import { ensureJavaJdk } from '../utils/javaSetup.js';
 
 const compileLimiter = pLimit(4);
 
@@ -44,6 +45,40 @@ async function getJavaMainClass(snapshotRoot, entryFile) {
   } catch {
     return path.basename(entryFile, '.java');
   }
+}
+
+async function getCppSourceFilesToCompile(snapshotRoot, entryFile) {
+  const targetEntry = path.join(snapshotRoot, entryFile);
+  const sourceFiles = await fs.readdir(snapshotRoot, { recursive: true }).catch(() => []);
+  const cppFiles = sourceFiles
+    .filter((file) => {
+      const s = file.toString().toLowerCase();
+      return s.endsWith('.cpp') || s.endsWith('.cc') || s.endsWith('.cxx');
+    })
+    .map((file) => path.join(snapshotRoot, file.toString()));
+
+  if (cppFiles.length <= 1) {
+    return cppFiles.length === 1 ? cppFiles : [targetEntry];
+  }
+
+  const filesToCompile = [];
+  for (const file of cppFiles) {
+    if (path.normalize(file) === path.normalize(targetEntry)) {
+      filesToCompile.push(file);
+      continue;
+    }
+    try {
+      const content = await fs.readFile(file, 'utf8');
+      const hasMain = /^\s*(int|void)\s+main\s*\(/m.test(content);
+      if (!hasMain) {
+        filesToCompile.push(file);
+      }
+    } catch {
+      // Ignore read errors
+    }
+  }
+
+  return filesToCompile.length > 0 ? filesToCompile : [targetEntry];
 }
 
 async function getCSourceFilesToCompile(snapshotRoot, entryFile) {
@@ -98,7 +133,14 @@ export async function spawnInteractiveExecution(input) {
   };
 
   try {
-    if (language === 'javascript' || language === 'node') {
+    const lowerEntry = entryFile.toLowerCase();
+    const isNode = language === 'javascript' || language === 'node' || lowerEntry.endsWith('.js') || lowerEntry.endsWith('.mjs') || lowerEntry.endsWith('.cjs');
+    const isPython = !isNode && (language === 'python' || lowerEntry.endsWith('.py'));
+    const isCpp = !isNode && !isPython && (language === 'cpp' || language === 'c++' || lowerEntry.endsWith('.cpp') || lowerEntry.endsWith('.cc') || lowerEntry.endsWith('.cxx'));
+    const isC = !isNode && !isPython && !isCpp && (language === 'c' || lowerEntry.endsWith('.c'));
+    const isJava = !isNode && !isPython && !isCpp && !isC && (language === 'java' || lowerEntry.endsWith('.java'));
+
+    if (isNode) {
       commandString = `node ${entryFile}`;
 
       // Auto-install missing Node dependencies before execution
@@ -114,7 +156,7 @@ export async function spawnInteractiveExecution(input) {
         cwd: snapshotRoot,
         windowsHide: true
       });
-    } else if (language === 'python') {
+    } else if (isPython) {
       const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
       commandString = `${pythonCmd} -u ${entryFile}`;
 
@@ -134,7 +176,36 @@ export async function spawnInteractiveExecution(input) {
         env: pythonEnv,
         windowsHide: true
       });
-    } else if (language === 'c') {
+    } else if (isCpp) {
+      const cppFilesToCompile = await getCppSourceFilesToCompile(snapshotRoot, entryFile);
+      if (cppFilesToCompile.length === 0) {
+        if (onStderr) onStderr('No C++ source files found (.cpp, .cc)\n');
+        handleClose(1);
+        return { command: 'g++', writeInput: () => {}, kill: () => {} };
+      }
+
+      const outputBinary = path.join(snapshotRoot, process.platform === 'win32' ? 'program.exe' : 'program');
+      const relativeFiles = cppFilesToCompile.map((f) => path.relative(snapshotRoot, f));
+      commandString = `g++ ${relativeFiles.join(' ')} -o ${path.basename(outputBinary)} && ${path.basename(outputBinary)}`;
+
+      const compile = await compileLimiter(() => runCompileProcess(
+        'g++',
+        [...cppFilesToCompile, '-o', outputBinary, '-O0', '-std=c++17'],
+        snapshotRoot
+      ));
+
+      if (compile.exitCode !== 0) {
+        if (compile.stdout && onStdout) onStdout(compile.stdout);
+        if (compile.stderr && onStderr) onStderr(compile.stderr);
+        handleClose(compile.exitCode);
+        return { command: commandString, writeInput: () => {}, kill: () => {} };
+      }
+
+      childProcess = spawn(outputBinary, [], {
+        cwd: snapshotRoot,
+        windowsHide: true
+      });
+    } else if (isC) {
       const cFilesToCompile = await getCSourceFilesToCompile(snapshotRoot, entryFile);
       if (cFilesToCompile.length === 0) {
         if (onStderr) onStderr('No C source files found (.c)\n');
@@ -173,6 +244,7 @@ export async function spawnInteractiveExecution(input) {
       });
     } else {
       // Java
+      const { javac, java } = await ensureJavaJdk(onStdout);
       const sourceFiles = await fs.readdir(snapshotRoot, { recursive: true }).catch(() => []);
       const javaFiles = sourceFiles.filter((file) => file.toString().endsWith('.java'));
       if (javaFiles.length === 0) {
@@ -187,7 +259,7 @@ export async function spawnInteractiveExecution(input) {
       const mainClass = await getJavaMainClass(snapshotRoot, entryFile);
       commandString = `javac *.java && java -cp classes ${mainClass}`;
 
-      const compile = await compileLimiter(() => runCompileProcess('javac', ['-d', classesDir, ...javaFiles.map((f) => path.join(snapshotRoot, f.toString()))], snapshotRoot));
+      const compile = await compileLimiter(() => runCompileProcess(javac, ['-d', classesDir, ...javaFiles.map((f) => path.join(snapshotRoot, f.toString()))], snapshotRoot));
 
       if (compile.exitCode !== 0) {
         if (compile.stdout && onStdout) onStdout(compile.stdout);
@@ -196,7 +268,7 @@ export async function spawnInteractiveExecution(input) {
         return { command: commandString, writeInput: () => {}, kill: () => {} };
       }
 
-      childProcess = spawn('java', ['-Dfile.encoding=UTF-8', '-cp', classesDir, mainClass], {
+      childProcess = spawn(java, ['-Dfile.encoding=UTF-8', '-cp', classesDir, mainClass], {
         cwd: snapshotRoot,
         windowsHide: true
       });
