@@ -46,8 +46,13 @@ export async function connectDatabase() {
     try {
       process.stdout.write(`Connecting to primary MongoDB cluster...\n`);
       await mongoose.connect(env.MONGODB_URI, {
-        serverSelectionTimeoutMS: 10000,
-        connectTimeoutMS: 10000,
+        serverSelectionTimeoutMS: 15000,
+        connectTimeoutMS: 15000,
+        maxPoolSize: 25,
+        minPoolSize: 2,
+        maxIdleTimeMS: 30000,
+        socketTimeoutMS: 45000,
+        family: 4,
       });
       connectionPromise = null;
       return;

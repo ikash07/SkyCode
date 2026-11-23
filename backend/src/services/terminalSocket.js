@@ -25,6 +25,25 @@ function extractTokenFromCookie(cookieHeader) {
 export function setupTerminalSocket(server) {
   const wss = new WebSocketServer({ noServer: true });
 
+  // Periodically ping clients to detect and clean up dead/zombie sockets from closed tabs
+  const heartbeatInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (ws.isAlive === false) {
+        return ws.terminate();
+      }
+      ws.isAlive = false;
+      try {
+        ws.ping();
+      } catch {
+        ws.terminate();
+      }
+    });
+  }, 30000);
+
+  server.on('close', () => {
+    clearInterval(heartbeatInterval);
+  });
+
   server.on('upgrade', (request, socket, head) => {
     const url = new URL(request.url, `http://${request.headers.host}`);
     if (url.pathname === '/ws/terminal' || url.pathname === '/api/ws/terminal') {
@@ -35,6 +54,11 @@ export function setupTerminalSocket(server) {
   });
 
   wss.on('connection', (ws, req) => {
+    ws.isAlive = true;
+    ws.on('pong', () => {
+      ws.isAlive = true;
+    });
+
     let currentRunner = null;
     let currentUserId = null;
     let currentProjectId = null;

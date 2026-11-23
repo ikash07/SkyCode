@@ -32,10 +32,16 @@ export function AuthProvider({ children }) {
       const currentUser = await meRequest();
       setUser(currentUser);
       try { localStorage.setItem('skycode_user', JSON.stringify(currentUser)); } catch {}
-    } catch {
-      localStorage.removeItem('skycode_token');
-      try { localStorage.removeItem('skycode_user'); } catch {}
-      setUser(null);
+    } catch (err) {
+      // ONLY invalidate credentials on explicit 401 Unauthorized
+      // Under high traffic / concurrent users, temporary 502/503/429/timeout MUST NOT log the user out!
+      if (err.response && err.response.status === 401) {
+        localStorage.removeItem('skycode_token');
+        try { localStorage.removeItem('skycode_user'); } catch {}
+        setUser(null);
+      } else {
+        console.warn('Backend busy or recovering, retaining active user session:', err.message);
+      }
     } finally {
       setLoading(false);
     }

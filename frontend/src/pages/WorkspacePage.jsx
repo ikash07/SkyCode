@@ -433,17 +433,15 @@ export function WorkspacePage() {
     // Guarantees the file exists on Render container disk even after container restarts or sleep!
     try {
       await saveFileRequest(projectId, canonicalTarget, contentToSave);
-      const lowerTarget = canonicalTarget.toLowerCase();
-      if (lowerTarget !== canonicalTarget) {
-        try { await saveFileRequest(projectId, lowerTarget, contentToSave); } catch {}
-      }
-      if (targetFile.toLowerCase() !== canonicalTarget.toLowerCase()) {
+
+      // If casing differed, sync the actual target file path as well
+      if (targetFile !== canonicalTarget) {
         try { await saveFileRequest(projectId, targetFile, contentToSave); } catch {}
       }
 
       // Also persist any other dirty open files
       for (const doc of openFilesRef.current) {
-        if (doc.dirty && cleanPath(doc.path).toLowerCase() !== canonicalTarget.toLowerCase()) {
+        if (doc.dirty && cleanPath(doc.path) !== canonicalTarget && cleanPath(doc.path) !== targetFile) {
           const docContent = fileContentsRef.current[doc.path] ?? doc.content;
           if (docContent !== undefined) {
             try { await saveFileRequest(projectId, doc.path, docContent); } catch {}

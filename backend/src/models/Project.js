@@ -17,4 +17,6 @@ const projectSchema = new Schema(
   { timestamps: true }
 );
 
+projectSchema.index({ ownerId: 1, updatedAt: -1 });
+
 export const Project = model('Project', projectSchema);

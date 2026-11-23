@@ -2,10 +2,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import pLimit from 'p-limit';
 import { env } from '../config/env.js';
 import { executionsRoot } from '../utils/runtimePaths.js';
 import { copyDirectory, removeIfExists } from '../utils/fs.js';
 import { ensureLocalPythonDependencies, getPythonEnvironment } from '../utils/pythonPackages.js';
+
+const compileLimiter = pLimit(4);
 
 function runCompileProcess(command, args, cwd) {
   return new Promise((resolve) => {
@@ -140,11 +143,11 @@ export async function spawnInteractiveExecution(input) {
       commandString = `gcc ${relativeFiles.join(' ')} -o ${path.basename(outputBinary)} && ${path.basename(outputBinary)}`;
 
       // '-O0' flag ensures super fast instant compilation (20ms instead of 500ms)
-      const compile = await runCompileProcess(
+      const compile = await compileLimiter(() => runCompileProcess(
         'gcc',
         ['-include', unbufferHeader, ...cFilesToCompile, '-o', outputBinary, '-O0', '-std=c17', '-lm'],
         snapshotRoot
-      );
+      ));
 
       if (compile.exitCode !== 0) {
         if (compile.stdout && onStdout) onStdout(compile.stdout);
@@ -173,7 +176,7 @@ export async function spawnInteractiveExecution(input) {
       const mainClass = await getJavaMainClass(snapshotRoot, entryFile);
       commandString = `javac *.java && java -cp classes ${mainClass}`;
 
-      const compile = await runCompileProcess('javac', ['-d', classesDir, ...javaFiles.map((f) => path.join(snapshotRoot, f.toString()))], snapshotRoot);
+      const compile = await compileLimiter(() => runCompileProcess('javac', ['-d', classesDir, ...javaFiles.map((f) => path.join(snapshotRoot, f.toString()))], snapshotRoot));
 
       if (compile.exitCode !== 0) {
         if (compile.stdout && onStdout) onStdout(compile.stdout);
