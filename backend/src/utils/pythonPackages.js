@@ -297,6 +297,21 @@ try:
     webbrowser.open = _skycode_open
 except Exception:
     pass
+
+# 3. Namespace Package Bridge (ensures namespace packages like google.genai find all site-packages directories)
+try:
+    for sp in list(sys.path):
+        for ns in ['google', 'azure']:
+            ns_cand = os.path.join(sp, ns)
+            if os.path.isdir(ns_cand):
+                try:
+                    mod = __import__(ns)
+                    if hasattr(mod, '__path__') and ns_cand not in mod.__path__:
+                        mod.__path__.append(ns_cand)
+                except Exception:
+                    pass
+except Exception:
+    pass
 `;
 
 /**
@@ -307,10 +322,10 @@ export function getPythonEnvironment(snapshotRoot) {
   const homeDir = process.env.HOME || (process.platform === 'win32' ? process.env.USERPROFILE : '/home/render');
   const userLocalBin = path.join(homeDir || '', '.local', 'bin');
   const siteDirs = [
-    path.join(homeDir || '', '.local', 'lib', 'python3.13', 'site-packages'),
-    path.join(homeDir || '', '.local', 'lib', 'python3.12', 'site-packages'),
     path.join(homeDir || '', '.local', 'lib', 'python3.11', 'site-packages'),
-    path.join(homeDir || '', '.local', 'lib', 'python3.10', 'site-packages')
+    path.join(homeDir || '', '.local', 'lib', 'python3.12', 'site-packages'),
+    path.join(homeDir || '', '.local', 'lib', 'python3.10', 'site-packages'),
+    path.join(homeDir || '', '.local', 'lib', 'python3.13', 'site-packages')
   ];
 
   const pythonPathParts = [snapshotRoot, ...siteDirs];
