@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, User, Lock, Eye, EyeOff, ArrowRight, Github, Star, Zap } from 'lucide-react';
+import { LOGO_ICON_BASE64 } from '../assets/logo-b64';
 
 /* ── Decorative floating star ── */
 function FloatingStar({ style, size = 24, rotate = 0, className = '' }) {
@@ -93,7 +94,7 @@ export function AuthPage() {
             {Array.from({ length: 18 }).map((_, i) => (
               <span key={`t1-${i}`} className="inline-flex items-center gap-2 mx-4 sm:mx-5 shrink-0">
                 <img
-                  src="/logo-icon.png"
+                  src={LOGO_ICON_BASE64}
                   alt=""
                   className="w-3.5 h-3.5 object-cover rounded-xs inline-block shrink-0"
                   loading="eager"
@@ -108,7 +109,7 @@ export function AuthPage() {
             {Array.from({ length: 18 }).map((_, i) => (
               <span key={`t2-${i}`} className="inline-flex items-center gap-2 mx-4 sm:mx-5 shrink-0">
                 <img
-                  src="/logo-icon.png"
+                  src={LOGO_ICON_BASE64}
                   alt=""
                   className="w-3.5 h-3.5 object-cover rounded-xs inline-block shrink-0"
                   loading="eager"
@@ -153,7 +154,7 @@ export function AuthPage() {
                 overflow: 'hidden',
               }}
             >
-              <img src="/logo-icon.png" alt="SkyCode" className="w-full h-full object-cover" />
+              <img src={LOGO_ICON_BASE64} alt="SkyCode" className="w-full h-full object-cover" />
             </div>
             <div className="min-w-0">
               <div className="font-black text-lg sm:text-xl uppercase tracking-tight text-black leading-none truncate">
