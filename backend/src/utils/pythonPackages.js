@@ -539,7 +539,7 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
   }
 
   async function pipInstall(installArgs) {
-    const baseArgs = ['-m', 'pip', 'install', ...installArgs, '--quiet', '--disable-pip-version-check'];
+    const baseArgs = ['-m', 'pip', 'install', ...installArgs, '--quiet', '--disable-pip-version-check', '--no-cache-dir', '--no-warn-script-location'];
 
     // Strategy 1: python3 -m pip install --user --break-system-packages (ideal for Linux non-root / Render / Debian 12+)
     let result = await runShort(pythonCmd, [...baseArgs, '--user', '--break-system-packages'], 180, pythonEnv);
@@ -569,43 +569,7 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
     return result;
   }
 
-  // 3. Bootstrap pip if not available
-  try {
-    const pipCheck = await runShort(pythonCmd, ['-m', 'pip', '--version'], 10, pythonEnv);
-    if (pipCheck.exitCode !== 0) {
-      if (onLog) onLog('[SkyCode] Bootstrapping pip package manager...\r\n');
-      const ensureRes = await runShort(pythonCmd, ['-m', 'ensurepip', '--default-pip'], 30, pythonEnv);
-      if (ensureRes.exitCode !== 0 && process.platform !== 'win32') {
-        try {
-          const https = await import('node:https');
-          const fsSync = await import('node:fs');
-          const tmpPip = path.join('/tmp', 'get-pip.py');
-          await new Promise((res, rej) => {
-            const file = fsSync.createWriteStream(tmpPip);
-            https.get('https://bootstrap.pypa.io/get-pip.py', (resp) => {
-              if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
-                https.get(resp.headers.location, (r) => {
-                  r.pipe(file);
-                  file.on('finish', () => file.close(res));
-                }).on('error', rej);
-              } else {
-                resp.pipe(file);
-                file.on('finish', () => file.close(res));
-              }
-            }).on('error', rej);
-          });
-          await runShort(pythonCmd, [tmpPip, '--user', '--break-system-packages', '--no-warn-script-location'], 120, pythonEnv);
-          await fs.unlink(tmpPip).catch(() => {});
-        } catch (bootstrapErr) {
-          console.error('[SkyCode] Failed to bootstrap pip:', bootstrapErr.message);
-        }
-      }
-    }
-  } catch {
-    // Ignore — pip may still work
-  }
-
-  // 4. Install from requirements.txt if present
+  // 3. Install from requirements.txt if present
   const requirementsPath = path.join(snapshotRoot, 'requirements.txt');
   if (await exists(requirementsPath)) {
     try {
@@ -616,7 +580,7 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
     }
   }
 
-  // 5. Detect and install third-party packages from imports across the project
+  // 4. Detect and install third-party packages from imports across the project
   const packages = await detectPythonDependencies(snapshotRoot, entryFile);
   if (packages.length === 0) {
     return;
@@ -626,13 +590,30 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
   const userSitePackages = path.join(homeDir || '', '.local', 'lib', 'python3.11', 'site-packages');
   await fs.mkdir(userSitePackages, { recursive: true }).catch(() => {});
 
+  const allSiteDirs = [
+    userSitePackages,
+    path.join(homeDir || '', '.local', 'lib', 'python3.12', 'site-packages'),
+    path.join(homeDir || '', '.local', 'lib', 'python3.10', 'site-packages'),
+    path.join(homeDir || '', '.local', 'lib', 'python3.13', 'site-packages'),
+    '/usr/local/lib/python3.11/dist-packages',
+    '/usr/local/lib/python3.12/dist-packages',
+    '/usr/lib/python3/dist-packages'
+  ];
+
   const missingFromDisk = [];
 
-  // Check if each package already exists in userSitePackages or can be restored from persistent database
+  // Check if each package already exists in any site-packages directory or can be restored from persistent database
   for (const pkg of packages) {
     const pkgNorm = pkg.toLowerCase().replace(/[-_]/g, '');
-    const entries = await fs.readdir(userSitePackages).catch(() => []);
-    const isInstalled = entries.some((e) => e.toLowerCase().replace(/[-_]/g, '').startsWith(pkgNorm));
+    let isInstalled = false;
+
+    for (const siteDir of allSiteDirs) {
+      const entries = await fs.readdir(siteDir).catch(() => []);
+      if (entries.some((e) => e.toLowerCase().replace(/[-_]/g, '').startsWith(pkgNorm))) {
+        isInstalled = true;
+        break;
+      }
+    }
 
     if (isInstalled) {
       continue;
