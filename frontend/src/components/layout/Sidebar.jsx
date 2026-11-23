@@ -1,5 +1,6 @@
 import { LayoutGrid, FolderOpen, Search, Settings, Play, Terminal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { memo } from 'react';
 
 const items = [
   { view: 'explorer',  icon: FolderOpen,   label: 'Explorer' },
@@ -7,7 +8,7 @@ const items = [
   { view: 'settings',  icon: Settings,      label: 'Settings' },
 ];
 
-export function Sidebar({ active, onChange, onRun, isTerminalVisible, onToggleTerminal }) {
+export const Sidebar = memo(function Sidebar({ active, onChange, onRun, isTerminalVisible, onToggleTerminal }) {
   const navigate = useNavigate();
 
   const handleNav = (view) => {
@@ -104,4 +105,4 @@ export function Sidebar({ active, onChange, onRun, isTerminalVisible, onToggleTe
       </button>
     </aside>
   );
-}
+});

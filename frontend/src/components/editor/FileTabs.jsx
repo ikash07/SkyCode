@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import { X, FileCode, FileText } from 'lucide-react';
 
-export function FileTabs({ openFiles, activeFile, onSelect, onClose }) {
+export const FileTabs = memo(function FileTabs({ openFiles, activeFile, onSelect, onClose }) {
   if (openFiles.length === 0) return null;
 
   return (
@@ -8,11 +9,12 @@ export function FileTabs({ openFiles, activeFile, onSelect, onClose }) {
       {openFiles.map((filePath) => {
         const fileName = filePath.split('/').pop();
         const isSelected = activeFile === filePath;
+        const lower = fileName.toLowerCase();
         const isCode =
-          fileName.endsWith('.py') ||
-          fileName.endsWith('.js') ||
-          fileName.endsWith('.c') ||
-          fileName.endsWith('.java');
+          lower.endsWith('.py') ||
+          lower.endsWith('.js') ||
+          lower.endsWith('.c') ||
+          lower.endsWith('.java');
 
         return (
           <button
@@ -56,4 +58,4 @@ export function FileTabs({ openFiles, activeFile, onSelect, onClose }) {
       })}
     </div>
   );
-}
+});

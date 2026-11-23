@@ -1,29 +1,42 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, memo } from 'react';
 import Editor from '@monaco-editor/react';
 import { editorLanguage } from '../../utils/language';
 
-export function CodeEditor({ filePath, value, onChange, fontSize = 14, theme = 'dark' }) {
+export const CodeEditor = memo(function CodeEditor({ filePath, value, onChange, fontSize = 14, theme = 'dark' }) {
   const language = filePath ? editorLanguage(filePath) : 'plaintext';
   const editorRef = useRef(null);
+  const monacoRef = useRef(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const isInternalChange = useRef(false);
 
+  // Switch or update the Monaco model on filePath / value change without re-mounting the editor
   useEffect(() => {
     const editor = editorRef.current;
-    if (!editor) return;
-    const model = editor.getModel();
-    if (!model) return;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco || !filePath) return;
 
-    const currentValue = model.getValue();
-    if (currentValue !== value && !isInternalChange.current) {
-      editor.setValue(value ?? '');
+    const uri = monaco.Uri.parse(`file:///${filePath.replace(/^\/+/, '')}`);
+    let model = monaco.editor.getModel(uri);
+    if (!model) {
+      model = monaco.editor.createModel(value ?? '', language, uri);
+    } else {
+      if (value !== undefined && model.getValue() !== value && !isInternalChange.current) {
+        isInternalChange.current = true;
+        model.setValue(value);
+        isInternalChange.current = false;
+      }
+      monaco.editor.setModelLanguage(model, language);
     }
-    isInternalChange.current = false;
-  }, [value]);
+
+    if (editor.getModel() !== model) {
+      editor.setModel(model);
+    }
+  }, [filePath, language, value]);
 
   const handleMount = (editor, monacoInstance) => {
     editorRef.current = editor;
+    monacoRef.current = monacoInstance;
 
     monacoInstance.editor.defineTheme('minimal-white', {
       base: 'vs',
@@ -245,6 +258,16 @@ export function CodeEditor({ filePath, value, onChange, fontSize = 14, theme = '
       }
     });
 
+    // Initialize active file model on mount
+    if (filePath) {
+      const uri = monacoInstance.Uri.parse(`file:///${filePath.replace(/^\/+/, '')}`);
+      let model = monacoInstance.editor.getModel(uri);
+      if (!model) {
+        model = monacoInstance.editor.createModel(value ?? '', language, uri);
+      }
+      editor.setModel(model);
+    }
+
     editor.onDidChangeModelContent(() => {
       const currentValue = editor.getModel()?.getValue() ?? '';
       isInternalChange.current = true;
@@ -263,11 +286,9 @@ export function CodeEditor({ filePath, value, onChange, fontSize = 14, theme = '
 
   return (
     <Editor
-      key={filePath}
       height="100%"
       theme="minimal-white"
       language={language}
-      defaultValue={value ?? ''}
       onMount={handleMount}
       options={{
         fontSize,
@@ -285,4 +306,4 @@ export function CodeEditor({ filePath, value, onChange, fontSize = 14, theme = '
       }}
     />
   );
-}
+});

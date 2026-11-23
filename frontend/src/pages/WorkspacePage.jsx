@@ -245,16 +245,27 @@ export function WorkspacePage() {
   }, [saveActiveFile, project]);
 
   const openFile = async (filePath) => {
-    if (!projectId) return;
-    const existing = openFiles.find((file) => file.path === filePath);
+    if (!projectId || !filePath) return;
+    const existing = openFilesRef.current.find(
+      (file) => file.path.toLowerCase() === filePath.toLowerCase()
+    );
     if (existing) {
-      setActiveFile(filePath);
+      setActiveFile(existing.path);
       return;
     }
 
-    const file = await readFileRequest(projectId, filePath);
-    setOpenFiles((current) => [...current, { path: file.path, content: file.content, dirty: false }]);
-    setActiveFile(file.path);
+    try {
+      const file = await readFileRequest(projectId, filePath);
+      setOpenFiles((current) => {
+        if (current.some((f) => f.path.toLowerCase() === file.path.toLowerCase())) {
+          return current;
+        }
+        return [...current, { path: file.path, content: file.content, dirty: false }];
+      });
+      setActiveFile(file.path);
+    } catch (err) {
+      console.warn('Failed to read file:', err);
+    }
   };
 
   const runActiveFile = async (overrideStdin = null) => {
@@ -281,7 +292,31 @@ export function WorkspacePage() {
 
     const effectiveLanguage = targetFile ? detectLanguageFromPath(targetFile) : (projectRef.current?.language || 'python');
 
-    // 4. Run immediately on 1st click
+    // 4. Ensure Node.js projects support CommonJS require()
+    if (effectiveLanguage === 'javascript' && tree) {
+      const hasPackageJson = (function checkPkg(nodes) {
+        for (const n of nodes) {
+          if (n.type === 'file' && (n.name === 'package.json' || n.path === 'package.json')) return true;
+          if (n.children && checkPkg(n.children)) return true;
+        }
+        return false;
+      })(tree);
+
+      if (!hasPackageJson) {
+        try {
+          await saveFileRequest(
+            projectId,
+            'package.json',
+            JSON.stringify({ name: 'my-app', version: '1.0.0', type: 'commonjs' }, null, 2)
+          );
+          void treeRequest(projectId).then(setTree);
+        } catch (e) {
+          console.warn('Auto package.json setup:', e);
+        }
+      }
+    }
+
+    // 5. Run immediately on 1st click
     if (terminalRef.current && terminalRef.current.startInteractiveExecution) {
       terminalRef.current.startInteractiveExecution(targetFile, effectiveLanguage);
       return;
@@ -453,8 +488,17 @@ export function WorkspacePage() {
 
   const updateSettings = async (updates) => {
     if (!projectId || !project) return;
-    const updated = await updateProjectRequest(projectId, updates);
-    setProject(updated);
+    // Optimistic local state update so sliders and toggles respond instantly with 0ms delay
+    setProject((prev) => ({
+      ...prev,
+      settings: { ...prev?.settings, ...(updates.settings || {}) }
+    }));
+    try {
+      const updated = await updateProjectRequest(projectId, updates);
+      setProject(updated);
+    } catch (e) {
+      console.warn('Update settings failed:', e);
+    }
   };
 
   if (!project) {
@@ -558,8 +602,15 @@ export function WorkspacePage() {
                 openFiles={openFiles.map((file) => file.path)}
                 activeFile={activeFile}
                 onSelect={setActiveFile}
-                onClose={(filePath) =>
-                  setOpenFiles((current) => current.filter((file) => file.path !== filePath))
+                onClose={(closedPath) =>
+                  setOpenFiles((current) => {
+                    const next = current.filter((file) => file.path !== closedPath);
+                    if (activeFileRef.current === closedPath) {
+                      const nextActive = next.length > 0 ? next[next.length - 1].path : null;
+                      setActiveFile(nextActive);
+                    }
+                    return next;
+                  })
                 }
               />
             </div>

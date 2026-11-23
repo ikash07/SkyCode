@@ -1,4 +1,4 @@
-import { forwardRef, useState, useRef, useImperativeHandle } from 'react';
+import { forwardRef, useState, useRef, useImperativeHandle, memo } from 'react';
 import { Terminal, AlertTriangle, FileOutput, X, Play, Square, Trash2 } from 'lucide-react';
 import { TerminalPanel } from './TerminalPanel';
 
@@ -8,7 +8,7 @@ const TABS = [
   { id: 'problems',  label: 'Problems', icon: AlertTriangle },
 ];
 
-export const BottomPanel = forwardRef(function BottomPanel(
+export const BottomPanel = memo(forwardRef(function BottomPanel(
   { activeTab, onTabChange, latestExecution, stdin, onStdinChange, onRun, busy, projectId, activeFile, language, onHide },
   ref
 ) {
@@ -237,4 +237,4 @@ export const BottomPanel = forwardRef(function BottomPanel(
       </div>
     </div>
   );
-});
+}));

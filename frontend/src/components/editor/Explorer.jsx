@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight, FilePlus2, FolderPlus, Pencil, Trash2, Upload, MoreHorizontal, Terminal } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, memo } from 'react';
 
-function TreeRow({ node, activeFile, onOpen, onRename, onDelete }) {
+const TreeRow = memo(function TreeRow({ node, activeFile, onOpen, onRename, onDelete }) {
   const [expanded, setExpanded] = useState(true);
 
   if (node.type === 'directory') {
@@ -100,9 +100,9 @@ function TreeRow({ node, activeFile, onOpen, onRename, onDelete }) {
       </span>
     </button>
   );
-}
+});
 
-export function Explorer({
+export const Explorer = memo(function Explorer({
   tree,
   activeFile,
   onOpen,
@@ -207,4 +207,4 @@ export function Explorer({
       </div>
     </div>
   );
-}
+});
