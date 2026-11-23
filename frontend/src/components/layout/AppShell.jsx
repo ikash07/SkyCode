@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import { useThemeMode } from '../../hooks/useThemeMode';
 import { useAuth } from '../../context/AuthContext';
 import { MoonStar, SunMedium, Zap } from 'lucide-react';
-import { LOGO_ICON_BASE64 } from '../../assets/logo-b64';
 
 export function AppShell({ children, projectName }) {
   const { theme, setTheme } = useThemeMode();
@@ -30,7 +29,7 @@ export function AppShell({ children, projectName }) {
             style={{ width: 42, height: 42 }}
           >
             <img
-              src={LOGO_ICON_BASE64}
+              src="/logo-icon.png"
               alt="SkyCode"
               className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
             />

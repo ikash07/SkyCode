@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LOGO_ICON_BASE64 } from '../assets/logo-b64';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -35,7 +34,7 @@ export function LoginPage() {
         <div style={{ background: '#FFD93D', borderBottom: '3px solid #000', padding: '20px 24px' }}>
           <div className="flex items-center gap-2.5 mb-1.5">
             <div className="nb-logo-box" style={{ width: 28, height: 28 }}>
-              <img src={LOGO_ICON_BASE64} alt="SkyCode" className="w-full h-full object-cover" />
+              <img src="/logo-icon.png" alt="SkyCode" className="w-full h-full object-cover" />
             </div>
             <span className="text-xs font-black uppercase tracking-widest text-black/75">SkyCode Online IDE</span>
           </div>
