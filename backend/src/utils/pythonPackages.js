@@ -479,6 +479,41 @@ function runShort(command, args, timeoutSeconds = 120, extraEnv = {}) {
  * @param {string} entryFile     Relative path to the Python entry file
  * @param {Function} [onLog]     Optional logging callback to stream progress to terminal
  */
+const IMPORT_TEST_MAP = {
+  'google-genai': 'google.genai',
+  'google-generativeai': 'google.generativeai',
+  'SpeechRecognition': 'speech_recognition',
+  'edge-tts': 'edge_tts',
+  'opencv-python-headless': 'cv2',
+  'Pillow': 'PIL',
+  'python-dotenv': 'dotenv',
+  'scikit-learn': 'sklearn',
+  'beautifulsoup4': 'bs4',
+  'PyYAML': 'yaml'
+};
+
+const MODULE_DIR_MAP = {
+  'google-genai': ['google', 'google_genai'],
+  'google-generativeai': ['google', 'google_generativeai'],
+  'SpeechRecognition': ['speech_recognition', 'SpeechRecognition'],
+  'edge-tts': ['edge_tts'],
+  'opencv-python-headless': ['cv2'],
+  'Pillow': ['PIL', 'Pillow'],
+  'python-dotenv': ['dotenv'],
+  'scikit-learn': ['sklearn'],
+  'beautifulsoup4': ['bs4'],
+  'PyYAML': ['yaml']
+};
+
+async function isPackageImportable(modName, pythonCmd, pythonEnv) {
+  try {
+    const res = await runShort(pythonCmd, ['-c', `import ${modName}`], 3, pythonEnv);
+    return res.exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onLog = null) {
   const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
   const pythonFallback = process.platform === 'win32' ? 'python3' : 'python';
@@ -548,42 +583,28 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
   const userSitePackages = path.join(homeDir || '', '.local', 'lib', 'python3.11', 'site-packages');
   await fs.mkdir(userSitePackages, { recursive: true }).catch(() => {});
 
-  const allSiteDirs = [
-    userSitePackages,
-    path.join(homeDir || '', '.local', 'lib', 'python3.12', 'site-packages'),
-    path.join(homeDir || '', '.local', 'lib', 'python3.10', 'site-packages'),
-    path.join(homeDir || '', '.local', 'lib', 'python3.13', 'site-packages'),
-    '/usr/local/lib/python3.11/dist-packages',
-    '/usr/local/lib/python3.12/dist-packages',
-    '/usr/lib/python3/dist-packages'
-  ];
-
   const missingFromDisk = [];
 
-  // Check if each package already exists in any site-packages directory or can be restored from persistent database
+  // Check if each package is truly importable in Python or can be restored from persistent database
   for (const pkg of packages) {
-    const pkgNorm = pkg.toLowerCase().replace(/[-_]/g, '');
-    let isInstalled = false;
+    const modName = IMPORT_TEST_MAP[pkg] || pkg.toLowerCase().replace(/[-]/g, '_');
+    const isImportable = await isPackageImportable(modName, pythonCmd, pythonEnv);
 
-    for (const siteDir of allSiteDirs) {
-      const entries = await fs.readdir(siteDir).catch(() => []);
-      if (entries.some((e) => e.toLowerCase().replace(/[-_]/g, '').startsWith(pkgNorm))) {
-        isInstalled = true;
-        break;
-      }
-    }
-
-    if (isInstalled) {
+    if (isImportable) {
       continue;
     }
 
     // Attempt restoring instantly from MongoDB database
     const restored = await restorePackageFromDatabase(pkg, 'python', userSitePackages);
     if (restored) {
-      if (onLog) onLog(`[SkyCode] Restored ${pkg} from persistent database store (0ms install).\r\n`);
-    } else {
-      missingFromDisk.push(pkg);
+      const worksNow = await isPackageImportable(modName, pythonCmd, pythonEnv);
+      if (worksNow) {
+        if (onLog) onLog(`[SkyCode] Restored ${pkg} from persistent database store (0ms install).\r\n`);
+        continue;
+      }
     }
+
+    missingFromDisk.push(pkg);
   }
 
   if (missingFromDisk.length > 0) {
@@ -600,7 +621,12 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
           try {
             const entries = await fs.readdir(userSitePackages).catch(() => []);
             const pkgNorm = pkg.toLowerCase().replace(/[-_]/g, '');
-            const matching = entries.filter((e) => e.toLowerCase().replace(/[-_]/g, '').startsWith(pkgNorm));
+            const extraDirs = MODULE_DIR_MAP[pkg] || [];
+            const matching = entries.filter((e) => {
+              const norm = e.toLowerCase().replace(/[-_]/g, '');
+              if (norm.startsWith(pkgNorm)) return true;
+              return extraDirs.some((dir) => e === dir || e.startsWith(dir));
+            });
             if (matching.length > 0) {
               const saved = await savePackageToDatabase(pkg, 'python', userSitePackages, matching);
               if (saved && onLog) {
