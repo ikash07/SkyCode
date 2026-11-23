@@ -3,6 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { exists } from './fs.js';
 import { restorePackageFromDatabase, savePackageToDatabase } from '../services/packageCacheService.js';
+import { PackageStore } from '../models/PackageStore.js';
 
 /**
  * Comprehensive set of Python standard library modules.
@@ -616,6 +617,9 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
       if (worksNow) {
         if (onLog) onLog(`[SkyCode] Restored ${pkg} from persistent database store (0ms install).\r\n`);
         continue;
+      } else {
+        // Corrupted or incomplete record in DB - delete it so it can be cleanly re-installed
+        await PackageStore.deleteOne({ name: pkg.toLowerCase(), language: 'python' }).catch(() => {});
       }
     }
 
@@ -628,7 +632,7 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
         if (onLog) {
           onLog(`[SkyCode] Installing ${pkg}...\r\n`);
         }
-        const installRes = await pipInstall([pkg]);
+        const installRes = await pipInstall(['--force-reinstall', pkg]);
         if (installRes.exitCode === 0) {
           if (onLog) onLog(`[SkyCode] Ready: ${pkg} installed.\r\n`);
 
