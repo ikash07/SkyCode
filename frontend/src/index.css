@@ -395,6 +395,15 @@ body {
   will-change: transform, opacity;
 }
 
+@keyframes nb-progress-load {
+  0%   { width: 0%; }
+  60%  { width: 75%; }
+  100% { width: 100%; }
+}
+.nb-progress-load {
+  animation: nb-progress-load 0.58s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 .nb-stagger-1 { animation-delay: 0.04s; }
 .nb-stagger-2 { animation-delay: 0.08s; }
 .nb-stagger-3 { animation-delay: 0.12s; }
