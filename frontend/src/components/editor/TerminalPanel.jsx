@@ -64,16 +64,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       onLiveStreamChange({ stdout: '', stderr: '' });
     }
 
-    const apiBase = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? 'https://skycode-t3ry.onrender.com/api' : 'http://localhost:4000/api');
-    let wsUrl;
-    try {
-      const urlObj = new URL(apiBase);
-      const protocol = urlObj.protocol === 'https:' ? 'wss:' : 'ws:';
-      wsUrl = `${protocol}//${urlObj.host}/ws/terminal`;
-    } catch {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      wsUrl = `${protocol}//${window.location.host}/ws/terminal`;
-    }
+    let wsUrl = 'wss://skycode-t3ry.onrender.com/ws/terminal';
 
     try {
       const ws = new WebSocket(wsUrl);

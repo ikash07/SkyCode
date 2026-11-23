@@ -8,10 +8,18 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
+    const token = localStorage.getItem('skycode_token');
+    if (!token) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
     try {
       const currentUser = await meRequest();
       setUser(currentUser);
     } catch {
+      localStorage.removeItem('skycode_token');
       setUser(null);
     } finally {
       setLoading(false);

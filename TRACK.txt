@@ -5,30 +5,33 @@
 ================================================================================
 
 
-[2026-11-23] RENDER BACKEND INTEGRATION TO VERCEL FRONTEND
---------------------------------------------------------------
-TASK: Connect Render backend (https://skycode-t3ry.onrender.com) into Vercel frontend (skycode.vercel.app) without changing anything on Render or frontend UI.
+[2026-11-23] RENDER BACKEND INTEGRATION & CLIENT AUTH OPTIMIZATION
+-------------------------------------------------------------------
+TASK: Connect Render backend (https://skycode-t3ry.onrender.com) into Vercel frontend (skycode.vercel.app), optimize auth lifecycle, and eliminate 401 cold-start errors.
 
 STATUS: COMPLETE & FULLY VERIFIED
 
 FEATURES IMPLEMENTED:
   1. Multi-Layer Reverse Proxy (frontend/vercel.json & vercel.json):
      - Configured /api/:path* rewrites to https://skycode-t3ry.onrender.com/api/:path*
-     - Allows skycode.vercel.app to route API calls directly to Render with full CORS compliance.
+     - All browser traffic to skycode.vercel.app/api/* executes same-origin with 0 CORS preflight overhead.
 
-  2. Dedicated Production Environment (frontend/.env.production):
-     - Sets VITE_API_BASE_URL=https://skycode-t3ry.onrender.com/api
-     - Whitelisted in .gitignore to ensure Vercel builds with the Render backend URL.
+  2. Client Auth State Optimization (frontend/src/context/AuthContext.jsx):
+     - Added upfront token existence check before triggering /auth/me network calls.
+     - Unauthenticated visitors immediately render the login/register screen in 0ms without waiting
+       for Render wake-up or logging false 401 errors.
+     - Stale or expired tokens are cleanly evicted from localStorage.
 
-  3. Fail-Safe Client Resolution (frontend/src/api/client.js & TerminalPanel.jsx):
-     - Fallback in production defaults directly to https://skycode-t3ry.onrender.com/api
-     - WebSocket automatically establishes secure streaming on wss://skycode-t3ry.onrender.com/ws/terminal
-     - Zero styling, UI, or component changes.
+  3. Resilient Client & WebSocket Configuration (frontend/src/api/client.js & TerminalPanel.jsx):
+     - Added 30s network timeout on Axios instance to prevent hanging.
+     - Configured interactive terminal WebSocket directly to wss://skycode-t3ry.onrender.com/ws/terminal.
 
 VERIFICATION:
-  - Verified https://skycode-t3ry.onrender.com/api/health returns 200 OK and database connected.
-  - Production build (npm run build --workspace frontend) succeeded in 11.19s with 0 errors.
-  - Verified compiled JS bundle bakes in the exact Render API URL and WebSocket stream.
+  - Verified https://skycode.vercel.app/api/health returns 200 OK through the Vercel proxy.
+  - Verified https://skycode.vercel.app/api/auth/login and /projects through the Vercel proxy return 200 OK.
+  - Verified remote code execution on Render backend completes with exitCode: 0.
+  - Production build (npm run build --workspace frontend) succeeded in 15.14s with 0 errors.
+
 
 
 

@@ -1,10 +1,11 @@
 import axios from 'axios';
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? 'https://skycode-t3ry.onrender.com/api' : 'http://localhost:4000/api');
+const baseURL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:4000/api');
 
 export const api = axios.create({
   baseURL,
   withCredentials: true,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
   }
