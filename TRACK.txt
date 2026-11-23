@@ -1,8 +1,46 @@
 ================================================================================
                     SKYCODE PROJECT - WORK TRACKER
 ================================================================================
-                    Last Updated: 2026-10-04 01:56 IST
+                    Last Updated: 2026-11-23 12:06 IST
 ================================================================================
+
+
+[2026-11-23] VERCEL FULLSTACK BACKEND INTEGRATION & CLOUD DEPLOYMENT
+---------------------------------------------------------------------
+TASK: Add backend support for skycode.vercel.app frontend without changing existing UI/UX.
+
+STATUS: COMPLETE & FULLY VERIFIED
+
+FEATURES IMPLEMENTED:
+  1. Vercel Serverless Backend Handler (api/index.js):
+     - Created root serverless function handler that mounts the Express app (createApp)
+       and manages the MongoDB connection lifecycle for Vercel Serverless Functions.
+     - Routes /api/health, /api/auth/*, /api/projects/* directly on skycode.vercel.app.
+
+  2. Vercel Routing & SPA Configuration (vercel.json & frontend/vercel.json):
+     - Configured rewrites:
+       * /api/(.*) -> /api/index.js (Express serverless backend)
+       * /((?!api/).*) -> /index.html (Single Page App routing for React)
+     - Set frontend/dist as build output directory.
+
+  3. Serverless Filesystem Adaptation (backend/src/utils/runtimePaths.js):
+     - Dynamically routes project storage and execution caches to os.tmpdir() when running
+       in serverless environments (VERCEL / AWS_LAMBDA), avoiding read-only filesystem errors.
+
+  4. Resilient Database Connection (backend/src/config/database.js):
+     - Added cached connection promise to prevent race conditions during cold starts.
+     - Automatically connects to primary MongoDB Atlas cluster with 10s connection timeout.
+
+  5. Dynamic API URL Fallback (frontend/src/api/client.js & TerminalPanel.jsx):
+     - Preserves full existing Neo-Brutalism UI, styles, and components with 0 changes.
+     - Automatically uses relative /api in production on Vercel if VITE_API_BASE_URL is not set,
+       preventing browser mixed-content and connection refused errors to localhost:4000.
+
+VERIFICATION:
+  - Local HTTP server test on api/index.js returned 200 OK from /api/health with database: 'connected'.
+  - Auth test on /api/auth/login verified MongoDB Atlas communication.
+  - Production monorepo build (npm run build) completed in 18s with 0 errors.
+
 
 
 [2026-10-04] SEAMLESS INFINITE SCROLL TOP TICKER
