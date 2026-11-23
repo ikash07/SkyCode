@@ -168,19 +168,21 @@ const PYPI_PACKAGE_MAP = {
  * When package A is imported, also install companion packages so runtime sub-imports never fail.
  */
 const COMPANION_PACKAGES = {
+  'edge-tts': ['edge-tts', 'aiohttp'],
+  'edge_tts': ['edge-tts', 'aiohttp'],
   'opencv-python': ['opencv-python-headless'],
   'cv2': ['opencv-python-headless'],
   'PIL': ['Pillow'],
   'Pillow': ['Pillow'],
   'dotenv': ['python-dotenv'],
   'python-dotenv': ['python-dotenv'],
-  'google-genai': ['google-genai'],
-  'genai': ['google-genai'],
+  'google-genai': ['google-genai', 'pydantic', 'httpx'],
+  'genai': ['google-genai', 'pydantic', 'httpx'],
   'bs4': ['beautifulsoup4'],
   'beautifulsoup4': ['beautifulsoup4'],
-  'scikit-learn': ['scikit-learn'],
-  'sklearn': ['scikit-learn'],
-  'fastapi': ['fastapi', 'uvicorn'],
+  'scikit-learn': ['scikit-learn', 'scipy', 'numpy'],
+  'sklearn': ['scikit-learn', 'scipy', 'numpy'],
+  'fastapi': ['fastapi', 'uvicorn', 'pydantic'],
 };
 
 /**
