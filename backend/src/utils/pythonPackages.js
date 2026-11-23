@@ -168,22 +168,18 @@ const PYPI_PACKAGE_MAP = {
  * When package A is imported, also install companion packages so runtime sub-imports never fail.
  */
 const COMPANION_PACKAGES = {
-  'SpeechRecognition': ['SpeechRecognition', 'edge-tts', 'playsound', 'soundfile', 'gTTS', 'python-dotenv'],
-  'speech_recognition': ['SpeechRecognition', 'edge-tts', 'playsound', 'soundfile', 'gTTS', 'python-dotenv'],
-  'playsound': ['playsound'],
   'opencv-python': ['opencv-python-headless'],
   'cv2': ['opencv-python-headless'],
   'PIL': ['Pillow'],
   'Pillow': ['Pillow'],
   'dotenv': ['python-dotenv'],
   'python-dotenv': ['python-dotenv'],
-  'google-genai': ['google-genai', 'google-generativeai'],
-  'genai': ['google-genai', 'google-generativeai'],
-  'bs4': ['beautifulsoup4', 'lxml', 'html5lib'],
-  'beautifulsoup4': ['beautifulsoup4', 'lxml', 'html5lib'],
-  'scikit-learn': ['scikit-learn', 'scipy', 'numpy'],
-  'sklearn': ['scikit-learn', 'scipy', 'numpy'],
-  'pydub': ['pydub', 'scipy'],
+  'google-genai': ['google-genai'],
+  'genai': ['google-genai'],
+  'bs4': ['beautifulsoup4'],
+  'beautifulsoup4': ['beautifulsoup4'],
+  'scikit-learn': ['scikit-learn'],
+  'sklearn': ['scikit-learn'],
   'fastapi': ['fastapi', 'uvicorn'],
 };
 
@@ -629,16 +625,16 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
   }
 
   if (missingFromDisk.length > 0) {
-    try {
-      if (onLog) {
-        onLog(`[SkyCode] Installing missing packages (${missingFromDisk.join(', ')})...\r\n`);
-      }
-      const installRes = await pipInstall(missingFromDisk);
-      if (installRes.exitCode === 0) {
-        if (onLog) onLog(`[SkyCode] Ready: ${missingFromDisk.join(', ')} installed.\r\n`);
+    for (const pkg of missingFromDisk) {
+      try {
+        if (onLog) {
+          onLog(`[SkyCode] Installing ${pkg}...\r\n`);
+        }
+        const installRes = await pipInstall([pkg]);
+        if (installRes.exitCode === 0) {
+          if (onLog) onLog(`[SkyCode] Ready: ${pkg} installed.\r\n`);
 
-        // Automatically archive and save newly installed packages to MongoDB so next time it is already installed!
-        for (const pkg of missingFromDisk) {
+          // Automatically archive and save newly installed package to MongoDB
           try {
             const entries = await fs.readdir(userSitePackages).catch(() => []);
             const pkgNorm = pkg.toLowerCase().replace(/[-_]/g, '');
@@ -653,9 +649,9 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
             // Ignore DB cache errors
           }
         }
+      } catch {
+        // Continue to next package
       }
-    } catch {
-      // Execution will proceed with sitecustomize fallback
     }
   }
 }
