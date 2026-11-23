@@ -143,6 +143,23 @@ export async function spawnInteractiveExecution(input) {
     if (isNode) {
       commandString = `node ${entryFile}`;
 
+      // Isolate snapshot from backend/package.json so both CommonJS (require) and ESM (import) work cleanly
+      const userPkgJsonPath = path.join(snapshotRoot, 'package.json');
+      if (!(await exists(userPkgJsonPath))) {
+        let entryCode = '';
+        try {
+          entryCode = await fs.readFile(path.join(snapshotRoot, entryFile), 'utf8');
+        } catch {
+          // Ignore read error
+        }
+        const usesEsm = /^\s*(import|export)\s+/m.test(entryCode);
+        await fs.writeFile(
+          userPkgJsonPath,
+          JSON.stringify({ name: 'user-project', version: '1.0.0', type: usesEsm ? 'module' : 'commonjs' }, null, 2),
+          'utf8'
+        ).catch(() => {});
+      }
+
       // Auto-install missing Node dependencies before execution
       try {
         await ensureLocalNodeDependencies(snapshotRoot, entryFile, (logChunk) => {
