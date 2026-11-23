@@ -295,7 +295,10 @@ export const CodeEditor = memo(function CodeEditor({ projectId, filePath, value,
 
   useEffect(() => {
     if (editorRef.current) {
-      editorRef.current.updateOptions({ fontSize });
+      editorRef.current.updateOptions({
+        fontSize,
+        lineHeight: Math.round(fontSize * 1.55),
+      });
       editorRef.current.layout();
     }
   }, [fontSize]);
@@ -309,6 +312,8 @@ export const CodeEditor = memo(function CodeEditor({ projectId, filePath, value,
       onMount={handleMount}
       options={{
         fontSize,
+        lineHeight: Math.round(fontSize * 1.55),
+        letterSpacing: 0.2,
         fontFamily: "'Space Mono', monospace, Consolas",
         minimap: { enabled: false },
         smoothScrolling: true,

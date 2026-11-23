@@ -135,7 +135,7 @@ export function DashboardPage() {
         }}
       />
 
-      <div className="relative mx-auto max-w-6xl px-4 py-6 flex flex-col gap-6">
+      <div className="relative mx-auto max-w-6xl px-4 py-6 flex flex-col gap-6 nb-page-enter">
 
         {/* ── Top Header ── */}
         <header

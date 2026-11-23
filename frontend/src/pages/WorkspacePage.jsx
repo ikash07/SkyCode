@@ -103,12 +103,16 @@ export function WorkspacePage() {
     if (customSize && customSize !== 14 && customSize !== 15) {
       return customSize;
     }
-    if (windowWidth < 640) return 11;
-    if (windowWidth < 768) return 12;
-    if (windowWidth < 1024) return 13;
-    if (windowWidth < 1440) return 14;
-    if (windowWidth < 1920) return 15;
-    return 16;
+    // Perfect responsive font sizes calibrated for each device screen:
+    if (windowWidth < 480) return 12.5; // Small mobile phones (iPhone SE, Galaxy A)
+    if (windowWidth < 640) return 13;   // Standard mobile phones (iPhone 14/15, Pixel)
+    if (windowWidth < 768) return 13.5; // Large mobile / Phablets
+    if (windowWidth < 1024) return 14;  // Tablets / iPads
+    if (windowWidth < 1280) return 14.5;// Compact Laptops / Chromebooks
+    if (windowWidth < 1536) return 15;  // Standard 13-15" Laptops (MacBook Air/Pro)
+    if (windowWidth < 1920) return 15.5;// External 1080p Desktop Monitors
+    if (windowWidth < 2560) return 16;  // 2K / 1440p Desktop Monitors
+    return 17;                          // 4K / Ultrawide Displays
   }, [windowWidth, project?.settings?.fontSize]);
 
   const toggleTerminal = () => {
@@ -731,7 +735,7 @@ export function WorkspacePage() {
 
   return (
     <AppShell projectName={project.name}>
-      <div className="flex flex-col md:grid h-auto md:h-[calc(100vh-95px)] md:grid-cols-[60px_280px_1fr] gap-3">
+      <div className="flex flex-col md:grid h-auto md:h-[calc(100vh-95px)] md:grid-cols-[60px_280px_1fr] gap-3 nb-page-enter">
         {/* Left Sidebar */}
         <Sidebar
           active={sidebarView}

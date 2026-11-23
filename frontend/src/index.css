@@ -379,6 +379,26 @@ body {
   animation: nb-tab-enter 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Smooth page and container entrance animations */
+@keyframes nb-page-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.nb-page-enter {
+  animation: nb-page-enter 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+.nb-stagger-1 { animation-delay: 0.04s; }
+.nb-stagger-2 { animation-delay: 0.08s; }
+.nb-stagger-3 { animation-delay: 0.12s; }
+
 /* Super smooth fluid spring physics for buttons, cards and icons */
 .nb-btn,
 .nb-btn-yellow,

@@ -26,19 +26,42 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="grid min-h-full place-items-center px-4 py-10">
-      <form onSubmit={handleSubmit} className="glass-panel shell-shadow w-full max-w-md rounded-3xl p-8">
-        <div className="text-xs uppercase tracking-[0.35em] text-[var(--color-muted)]">Create account</div>
-        <h1 className="mt-3 text-3xl font-semibold">Join the workspace</h1>
-        <p className="mt-2 text-sm text-[var(--color-muted)]">Create and run projects in isolated Docker containers.</p>
-        <div className="mt-6 space-y-4">
-          <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} type="text" placeholder="Display name" className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 outline-none" />
-          <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="Email" className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 outline-none" />
-          <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="Password" className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 outline-none" />
-          {error ? <div className="rounded-2xl border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/10 px-4 py-3 text-sm text-[var(--color-danger)]">{error}</div> : null}
-          <button disabled={busy} className="w-full rounded-2xl bg-[var(--color-accent)] px-4 py-3 font-medium text-white disabled:opacity-60">{busy ? 'Creating account...' : 'Create account'}</button>
+    <div className="grid min-h-screen place-items-center px-4 py-10 relative nb-grid-bg" style={{ background: 'var(--color-canvas)' }}>
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-md nb-page-enter relative z-10"
+        style={{ background: 'var(--color-panel)', border: '3px solid #000', boxShadow: '8px 8px 0px 0px #000' }}
+      >
+        <div style={{ background: '#FF6B6B', borderBottom: '3px solid #000', padding: '20px 24px' }}>
+          <div className="flex items-center gap-2.5 mb-1.5">
+            <div className="nb-logo-box" style={{ width: 28, height: 28 }}>
+              <img src="/logo-icon.png" alt="SkyCode" className="w-full h-full object-cover" />
+            </div>
+            <span className="text-xs font-black uppercase tracking-widest text-white/85">SkyCode Online IDE</span>
+          </div>
+          <h1 className="text-2xl font-black uppercase tracking-tight text-white">Join Workspace</h1>
         </div>
-        <div className="mt-6 text-sm text-[var(--color-muted)]">Already have an account? <Link to="/login" className="text-[var(--color-accent)]">Sign in</Link></div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="nb-label mb-1.5 block">Display Name</label>
+            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} type="text" placeholder="Developer Name" className="nb-input" required />
+          </div>
+          <div>
+            <label className="nb-label mb-1.5 block">Email</label>
+            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="name@example.com" className="nb-input" required />
+          </div>
+          <div>
+            <label className="nb-label mb-1.5 block">Password</label>
+            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="••••••••" className="nb-input" required />
+          </div>
+          {error ? <div className="nb-error-box nb-in">⚠ {error}</div> : null}
+          <button type="submit" disabled={busy} className="nb-btn w-full mt-2" style={{ height: 48 }}>
+            {busy ? 'Creating account…' : 'Create Account →'}
+          </button>
+          <div className="pt-2 text-xs font-bold text-center uppercase tracking-wider" style={{ color: 'var(--color-muted)' }}>
+            Already have an account? <Link to="/login" className="font-black underline transition-colors hover:text-black dark:hover:text-white" style={{ color: 'var(--color-accent)' }}>Sign in →</Link>
+          </div>
+        </div>
       </form>
     </div>
   );
