@@ -326,7 +326,10 @@ export function getPythonEnvironment(snapshotRoot) {
     path.join(homeDir || '', '.local', 'lib', 'python3.11', 'site-packages'),
     path.join(homeDir || '', '.local', 'lib', 'python3.12', 'site-packages'),
     path.join(homeDir || '', '.local', 'lib', 'python3.10', 'site-packages'),
-    path.join(homeDir || '', '.local', 'lib', 'python3.13', 'site-packages')
+    path.join(homeDir || '', '.local', 'lib', 'python3.13', 'site-packages'),
+    '/opt/render/.local/lib/python3.11/site-packages',
+    '/opt/render/.local/lib/python3.12/site-packages',
+    '/home/render/.local/lib/python3.11/site-packages'
   ];
 
   const pythonPathParts = [snapshotRoot, ...siteDirs];
@@ -521,6 +524,47 @@ const MODULE_DIR_MAP = {
   'PyYAML': ['yaml']
 };
 
+// Global in-memory cache of verified importable packages on this server instance (0ms lookup)
+const verifiedImportableCache = new Set();
+
+async function batchCheckImportable(pkgList, pythonCmd, pythonEnv) {
+  if (pkgList.length === 0) return { succeeded: [], failed: [] };
+
+  const modPairs = pkgList.map((pkg) => ({
+    pkg,
+    mod: IMPORT_TEST_MAP[pkg] || pkg.toLowerCase().replace(/[-]/g, '_')
+  }));
+
+  const pyCode = `import sys
+pairs = ${JSON.stringify(modPairs)}
+failed = []
+for p in pairs:
+    try:
+        __import__(p['mod'])
+    except Exception:
+        failed.append(p['pkg'])
+print(','.join(failed))`;
+
+  try {
+    const res = await runShort(pythonCmd, ['-c', pyCode], 5, pythonEnv);
+    const failedNames = new Set(
+      res.stdout.trim() ? res.stdout.trim().split(',').map((s) => s.trim()) : []
+    );
+    const succeeded = [];
+    const failed = [];
+    for (const p of pkgList) {
+      if (failedNames.has(p)) {
+        failed.push(p);
+      } else {
+        succeeded.push(p);
+      }
+    }
+    return { succeeded, failed };
+  } catch {
+    return { succeeded: [], failed: pkgList };
+  }
+}
+
 async function isPackageImportable(modName, pythonCmd, pythonEnv) {
   try {
     const res = await runShort(pythonCmd, ['-c', `import ${modName}`], 3, pythonEnv);
@@ -535,7 +579,7 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
   const pythonFallback = process.platform === 'win32' ? 'python3' : 'python';
   const pythonEnv = getPythonEnvironment(snapshotRoot);
 
-  // 1. Always inject universal PyAudio compatibility module into snapshotRoot
+  // 1. Always inject universal PyAudio compatibility module into snapshotRoot and siteDirs
   const pyaudioPath = path.join(snapshotRoot, 'pyaudio.py');
   if (!(await exists(pyaudioPath))) {
     await fs.writeFile(pyaudioPath, PYAUDIO_MODULE_CODE, 'utf8').catch(() => {});
@@ -545,6 +589,24 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
   const sitecustomizePath = path.join(snapshotRoot, 'sitecustomize.py');
   if (!(await exists(sitecustomizePath))) {
     await fs.writeFile(sitecustomizePath, SITECUSTOMIZE_CODE, 'utf8').catch(() => {});
+  }
+
+  // Inject universal shims directly into site-packages directories so any package (e.g. SpeechRecognition) finds pyaudio
+  const homeDir = process.env.HOME || (process.platform === 'win32' ? process.env.USERPROFILE : '/home/render');
+  const candidateSiteDirs = [
+    path.join(homeDir || '', '.local', 'lib', 'python3.11', 'site-packages'),
+    path.join(homeDir || '', '.local', 'lib', 'python3.12', 'site-packages'),
+    '/opt/render/.local/lib/python3.11/site-packages',
+    '/opt/render/.local/lib/python3.12/site-packages'
+  ];
+  for (const sDir of candidateSiteDirs) {
+    try {
+      await fs.mkdir(sDir, { recursive: true });
+      const shimFile = path.join(sDir, 'pyaudio.py');
+      if (!(await exists(shimFile))) {
+        await fs.writeFile(shimFile, PYAUDIO_MODULE_CODE, 'utf8');
+      }
+    } catch {}
   }
 
   async function pipInstall(installArgs) {
@@ -595,26 +657,35 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
     return;
   }
 
-  const homeDir = process.env.HOME || (process.platform === 'win32' ? process.env.USERPROFILE : '/home/render');
+  // Fast path: if all packages were already verified importable on this instance, skip immediately (0ms!)
+  const unverified = packages.filter((pkg) => !verifiedImportableCache.has(pkg));
+  if (unverified.length === 0) {
+    return;
+  }
+
   const userSitePackages = path.join(homeDir || '', '.local', 'lib', 'python3.11', 'site-packages');
   await fs.mkdir(userSitePackages, { recursive: true }).catch(() => {});
 
+  // Fast batch check: check all unverified packages in 1 single 40ms Python process
+  const { succeeded, failed } = await batchCheckImportable(unverified, pythonCmd, pythonEnv);
+  for (const pkg of succeeded) {
+    verifiedImportableCache.add(pkg);
+  }
+
+  if (failed.length === 0) {
+    return;
+  }
+
   const missingFromDisk = [];
 
-  // Check if each package is truly importable in Python or can be restored from persistent database
-  for (const pkg of packages) {
+  // For any failed packages, attempt restoring from MongoDB database
+  for (const pkg of failed) {
     const modName = IMPORT_TEST_MAP[pkg] || pkg.toLowerCase().replace(/[-]/g, '_');
-    const isImportable = await isPackageImportable(modName, pythonCmd, pythonEnv);
-
-    if (isImportable) {
-      continue;
-    }
-
-    // Attempt restoring instantly from MongoDB database
     const restored = await restorePackageFromDatabase(pkg, 'python', userSitePackages);
     if (restored) {
       const worksNow = await isPackageImportable(modName, pythonCmd, pythonEnv);
       if (worksNow) {
+        verifiedImportableCache.add(pkg);
         if (onLog) onLog(`[SkyCode] Restored ${pkg} from persistent database store (0ms install).\r\n`);
         continue;
       } else {
@@ -634,6 +705,7 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
         }
         const installRes = await pipInstall(['--force-reinstall', pkg]);
         if (installRes.exitCode === 0) {
+          verifiedImportableCache.add(pkg);
           if (onLog) onLog(`[SkyCode] Ready: ${pkg} installed.\r\n`);
 
           // Automatically archive and save newly installed package to MongoDB

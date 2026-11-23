@@ -388,9 +388,16 @@ export function WorkspacePage() {
   const runActiveFile = async (overrideStdin = null) => {
     if (!projectId) return;
 
-    // 1. Resolve target file
-    const rawTarget = activeFileRef.current || activeFile || guessEntryFile(tree, projectRef.current?.language ?? 'python');
-    if (!rawTarget) return;
+    // 1. Resolve target file with robust multi-layer fallback
+    const rawTarget =
+      activeFileRef.current ||
+      activeFile ||
+      openFilesRef.current[0]?.path ||
+      (tree && guessEntryFile(tree, projectRef.current?.language ?? 'python'));
+
+    if (!rawTarget) {
+      return;
+    }
 
     const cleanPath = (p) => (p ? p.trim().replace(/^['"]|['"]$/g, '').replace(/^\.\//, '').replace(/^\/+/, '') : '');
     let targetFile = cleanPath(rawTarget);
@@ -418,7 +425,7 @@ export function WorkspacePage() {
       if (matched) canonicalTarget = matched;
     }
 
-    // 3. Make terminal visible and switch tab
+    // 3. Make terminal visible and switch tab immediately
     setIsTerminalVisible(true);
     setBottomTab('terminal');
 
@@ -429,27 +436,26 @@ export function WorkspacePage() {
       openFilesRef.current.find((f) => cleanPath(f.path).toLowerCase() === targetFile.toLowerCase())?.content ??
       '';
 
-    // 5. ALWAYS persist target file to backend disk before executing!
-    // Guarantees the file exists on Render container disk even after container restarts or sleep!
+    // 5. Fast concurrent save with timeout: saves all files in parallel without blocking execution
     try {
-      await saveFileRequest(projectId, canonicalTarget, contentToSave);
-
-      // If casing differed, sync the actual target file path as well
+      const savePromises = [];
+      savePromises.push(saveFileRequest(projectId, canonicalTarget, contentToSave));
       if (targetFile !== canonicalTarget) {
-        try { await saveFileRequest(projectId, targetFile, contentToSave); } catch {}
+        savePromises.push(saveFileRequest(projectId, targetFile, contentToSave).catch(() => {}));
       }
-
-      // Also persist any other dirty open files
       for (const doc of openFilesRef.current) {
         if (doc.dirty && cleanPath(doc.path) !== canonicalTarget && cleanPath(doc.path) !== targetFile) {
           const docContent = fileContentsRef.current[doc.path] ?? doc.content;
           if (docContent !== undefined) {
-            try { await saveFileRequest(projectId, doc.path, docContent); } catch {}
+            savePromises.push(saveFileRequest(projectId, doc.path, docContent).catch(() => {}));
           }
         }
       }
-
-      // Mark all open files clean
+      // Run concurrent saves; do not freeze UI if network is slow
+      await Promise.race([
+        Promise.all(savePromises),
+        new Promise((resolve) => setTimeout(resolve, 1200))
+      ]);
       setOpenFiles((current) => current.map((f) => ({ ...f, dirty: false })));
     } catch (err) {
       console.warn('Pre-execution save failed:', err);

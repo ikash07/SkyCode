@@ -2,6 +2,7 @@ export function detectLanguageFromPath(filePath) {
   if (!filePath || typeof filePath !== 'string') return 'python';
   const lower = filePath.toLowerCase();
   if (lower.endsWith('.py')) return 'python';
+  if (lower.endsWith('.cpp') || lower.endsWith('.cc') || lower.endsWith('.cxx') || lower.endsWith('.hpp')) return 'cpp';
   if (lower.endsWith('.c') || lower.endsWith('.h')) return 'c';
   if (lower.endsWith('.java')) return 'java';
   if (
@@ -19,6 +20,7 @@ export function editorLanguage(filePath) {
   if (!filePath || typeof filePath !== 'string') return 'plaintext';
   const lower = filePath.toLowerCase();
   if (lower.endsWith('.py')) return 'python';
+  if (lower.endsWith('.cpp') || lower.endsWith('.cc') || lower.endsWith('.cxx') || lower.endsWith('.hpp')) return 'cpp';
   if (lower.endsWith('.c') || lower.endsWith('.h')) return 'c';
   if (lower.endsWith('.java')) return 'java';
   if (lower.endsWith('.js') || lower.endsWith('.jsx') || lower.endsWith('.mjs') || lower.endsWith('.cjs')) return 'javascript';
@@ -38,11 +40,13 @@ export function guessEntryFile(tree, language) {
   const preferred =
     language === 'python'
       ? ['main.py', 'app.py']
-      : language === 'c'
-        ? ['main.c', 'program.c']
-        : language === 'javascript'
-          ? ['index.js', 'main.js', 'app.js']
-          : ['Main.java', 'App.java'];
+      : language === 'cpp'
+        ? ['main.cpp', 'main.cc', 'program.cpp', 'app.cpp']
+        : language === 'c'
+          ? ['main.c', 'program.c']
+          : language === 'javascript'
+            ? ['index.js', 'main.js', 'app.js']
+            : ['Main.java', 'App.java'];
 
   const filePaths = [];
 

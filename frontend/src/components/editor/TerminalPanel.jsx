@@ -72,14 +72,44 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       onLiveStreamChange({ stdout: '', stderr: '' });
     }
 
+    // Immediate terminal feedback: show running status & display command instantly!
+    setRunningState(true);
+    const defaultCmd = fileToRun
+      ? (effectiveLanguage === 'javascript' ? `node ${fileToRun}`
+        : effectiveLanguage === 'cpp' ? `g++ ${fileToRun} -o program && ./program`
+        : effectiveLanguage === 'c' ? `gcc ${fileToRun} && ./a.out`
+        : effectiveLanguage === 'java' ? `javac ${fileToRun} && java Main`
+        : `python3 -u ${fileToRun}`)
+      : 'run';
+    setHistory((prev) => [...prev, { type: 'command', content: `$ ${defaultCmd}` }]);
+
     let wsUrl = 'wss://skycode-t3ry.onrender.com/ws/terminal';
+    let hasReceivedMessage = false;
 
     try {
       const ws = new WebSocket(wsUrl);
       socketRef.current = ws;
 
+      // 6-second timeout fallback: if WebSocket hangs or is blocked, switch to standard runner
+      const connectionTimer = setTimeout(async () => {
+        if (!hasReceivedMessage && ws.readyState !== WebSocket.CLOSED) {
+          try { ws.close(); } catch {}
+          appendChunk('\n[Terminal connected slowly. Executing via fast direct runner...]\n', 'info');
+          try {
+            const resp = await runProjectRequest(projectId, fileToRun, effectiveLanguage, stdin);
+            if (resp.result?.stdout) appendChunk(resp.result.stdout, 'stdout');
+            if (resp.result?.stderr) appendChunk(resp.result.stderr, 'stderr');
+            const sec = ((resp.execution?.durationMs || 0) / 1000).toFixed(2);
+            appendChunk(`\n[Done] exited with code=${resp.execution?.exitCode ?? 0} in ${sec}s\n`, 'info');
+          } catch (err) {
+            appendChunk(`\nExecution error: ${err.message}\n`, 'stderr');
+          } finally {
+            setRunningState(false);
+          }
+        }
+      }, 6000);
+
       ws.onopen = () => {
-        setRunningState(true);
         const token = localStorage.getItem('skycode_token') || '';
         ws.send(JSON.stringify({
           type: 'start',
@@ -91,17 +121,15 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       };
 
       ws.onmessage = (event) => {
+        hasReceivedMessage = true;
+        clearTimeout(connectionTimer);
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'started') {
-            const defaultCmd = fileToRun
-              ? (effectiveLanguage === 'javascript' ? `node ${fileToRun}`
-                : effectiveLanguage === 'c' ? `gcc ${fileToRun} && ./a.out`
-                : effectiveLanguage === 'java' ? `javac ${fileToRun} && java Main`
-                : `python -u ${fileToRun}`)
-              : 'run';
-            const displayCmd = msg.command || defaultCmd;
-            setHistory((prev) => [...prev, { type: 'command', content: `$ ${displayCmd}` }]);
+            // Already logged initial command prompt optimistically; if server gave specific command, log only if different
+            if (msg.command && msg.command !== defaultCmd) {
+              setHistory((prev) => [...prev, { type: 'command', content: `$ ${msg.command}` }]);
+            }
           } else if (msg.type === 'stdout') {
             appendChunk(msg.data, 'stdout');
             currentStdout += msg.data;
@@ -137,6 +165,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       };
 
       ws.onerror = async () => {
+        clearTimeout(connectionTimer);
         setRunningState(false);
         appendChunk('\n[Interactive terminal disconnected. Running via standard runner...]\n', 'info');
         try {
@@ -151,6 +180,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       };
 
       ws.onclose = () => {
+        clearTimeout(connectionTimer);
         setRunningState(false);
       };
     } catch (e) {
