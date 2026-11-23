@@ -24,6 +24,7 @@ import {
 } from '../api/projects';
 import { useThemeMode } from '../hooks/useThemeMode';
 import { detectLanguageFromPath, guessEntryFile } from '../utils/language';
+import { addNodeToTree, removeNodeFromTree, renameNodeInTree } from '../utils/tree';
 import { Play, Terminal, Cloud } from 'lucide-react';
 
 export function WorkspacePage() {
@@ -252,16 +253,25 @@ export function WorkspacePage() {
       return;
     }
 
+    // 1. If already cached in memory, switch tab in 0 milliseconds!
+    if (fileContentsRef.current[filePath] !== undefined) {
+      const content = fileContentsRef.current[filePath];
+      setOpenFiles((current) => [...current, { path: filePath, content, dirty: false }]);
+      setActiveFile(filePath);
+      return;
+    }
+
+    // 2. Optimistically open tab immediately so the UI responds in 0ms!
+    setOpenFiles((current) => [...current, { path: filePath, content: '', dirty: false }]);
+    setActiveFile(filePath);
+
+    // 3. Fetch content in background and populate
     try {
       const file = await readFileRequest(projectId, filePath);
       fileContentsRef.current[file.path] = file.content;
-      setOpenFiles((current) => {
-        if (current.some((f) => f.path.toLowerCase() === file.path.toLowerCase())) {
-          return current;
-        }
-        return [...current, { path: file.path, content: file.content, dirty: false }];
-      });
-      setActiveFile(file.path);
+      setOpenFiles((current) =>
+        current.map((f) => (f.path.toLowerCase() === file.path.toLowerCase() ? { ...f, path: file.path, content: file.content } : f))
+      );
     } catch (err) {
       console.warn('Failed to read file:', err);
     }
@@ -351,9 +361,19 @@ export function WorkspacePage() {
       onConfirm: async (value) => {
         const filePath = value.trim();
         if (!filePath) return;
-        await saveFileRequest(projectId, filePath, '');
-        await loadWorkspace();
-        await openFile(filePath);
+
+        // 1. Optimistically update tree & open tab instantly in 0ms!
+        setTree((current) => addNodeToTree(current, filePath, 'file'));
+        fileContentsRef.current[filePath] = '';
+        setOpenFiles((current) => [...current, { path: filePath, content: '', dirty: false }]);
+        setActiveFile(filePath);
+
+        // 2. Persist in background
+        try {
+          await saveFileRequest(projectId, filePath, '');
+        } catch (err) {
+          console.warn('Failed to save new file:', err);
+        }
       }
     });
     setPathInput(baseFolder ? `${baseFolder}/` : '');
@@ -365,7 +385,6 @@ export function WorkspacePage() {
     const activeFileName = currentActive ? currentActive.split('/').pop() : null;
     const baseFolder = parentFolder || selectedFolder || '';
 
-    // If an active file is open, default to moving it inside the new folder
     setPathDialogSaveSelectedFile(Boolean(currentActive));
     setPathDialog({
       mode: 'create-folder',
@@ -378,34 +397,28 @@ export function WorkspacePage() {
         const folderPath = folderNameInput.trim().replace(/\/+$/, '');
         if (!folderPath) return;
 
-        // 1. Create the new folder on backend
-        await createFolderRequest(projectId, folderPath);
+        // 1. Optimistically add folder to tree in 0ms!
+        setTree((current) => addNodeToTree(current, folderPath, 'directory'));
 
-        // 2. If user had an active file and chose to save inside:
+        // 2. If moving current active file inside:
         if (currentActive && saveSelectedInside) {
-          // If active file was dirty, save content first
-          if (openFilesRef.current.some((f) => f.path === currentActive && f.dirty)) {
-            await saveFile(currentActive, true);
-          }
-
           const targetFilePath = `${folderPath}/${activeFileName}`;
-          await renameItemRequest(projectId, currentActive, targetFilePath);
-
-          // Update openFiles tabs to reflect the new path
+          setTree((current) => addNodeToTree(removeNodeFromTree(current, currentActive), targetFilePath, 'file'));
           setOpenFiles((current) =>
             current.map((file) =>
-              file.path === currentActive || file.path.startsWith(`${currentActive}/`)
-                ? { ...file, path: targetFilePath }
-                : file
+              file.path === currentActive ? { ...file, path: targetFilePath } : file
             )
           );
-
-          // Set active file to the new location inside the folder
           setActiveFile(targetFilePath);
+          void renameItemRequest(projectId, currentActive, targetFilePath);
         }
 
-        // 3. Reload tree
-        await loadWorkspace();
+        // 3. Persist folder on backend in background
+        try {
+          await createFolderRequest(projectId, folderPath);
+        } catch (err) {
+          console.warn('Failed to create folder:', err);
+        }
       }
     });
     setPathInput(baseFolder ? `${baseFolder}/` : '');
@@ -420,7 +433,9 @@ export function WorkspacePage() {
       initialValue: path,
       onConfirm: async (value) => {
         if (!value || value === path) return;
-        await renameItemRequest(projectId, path, value);
+
+        // 1. Optimistically update tree & tabs in 0ms!
+        setTree((current) => renameNodeInTree(current, path, value));
         setOpenFiles((current) =>
           current.map((file) =>
             file.path === path || file.path.startsWith(`${path}/`)
@@ -431,7 +446,13 @@ export function WorkspacePage() {
         if (activeFileRef.current && (activeFileRef.current === path || activeFileRef.current.startsWith(`${path}/`))) {
           setActiveFile(activeFileRef.current.replace(path, value));
         }
-        await loadWorkspace();
+
+        // 2. Persist in background
+        try {
+          await renameItemRequest(projectId, path, value);
+        } catch (err) {
+          console.warn('Rename failed:', err);
+        }
       }
     });
     setPathInput(path);
@@ -440,13 +461,22 @@ export function WorkspacePage() {
   const deletePath = async (path) => {
     if (!projectId) return;
     if (!window.confirm(`Delete ${path}?`)) return;
-    await deleteItemRequest(projectId, path);
+
+    // 1. Optimistically remove from tree & tabs in 0ms!
+    setTree((current) => removeNodeFromTree(current, path));
     setOpenFiles((current) =>
       current.filter((file) => file.path !== path && !file.path.startsWith(`${path}/`))
     );
-    if (activeFileRef.current && (activeFileRef.current === path || activeFileRef.current.startsWith(`${path}/`)))
+    if (activeFileRef.current && (activeFileRef.current === path || activeFileRef.current.startsWith(`${path}/`))) {
       setActiveFile(null);
-    await loadWorkspace();
+    }
+
+    // 2. Persist in background
+    try {
+      await deleteItemRequest(projectId, path);
+    } catch (err) {
+      console.warn('Delete failed:', err);
+    }
   };
 
   const uploadFiles = async () => {
@@ -455,28 +485,42 @@ export function WorkspacePage() {
     input.multiple = true;
     input.onchange = async () => {
       if (!projectId || !input.files?.length) return;
-      await uploadFilesRequest(projectId, Array.from(input.files));
-      await loadWorkspace();
+      const fileList = Array.from(input.files);
+
+      // 1. Optimistically add files to tree and cache content in 0ms!
+      for (const f of fileList) {
+        setTree((current) => addNodeToTree(current, f.name, 'file'));
+        try {
+          const text = await f.text();
+          fileContentsRef.current[f.name] = text;
+        } catch {}
+      }
+
+      // 2. Persist upload in background
+      try {
+        await uploadFilesRequest(projectId, fileList);
+        const nextTree = await treeRequest(projectId);
+        setTree(nextTree);
+      } catch (err) {
+        console.warn('Upload failed:', err);
+      }
     };
     input.click();
   };
 
-  const submitPathDialog = async () => {
+  const submitPathDialog = () => {
     if (!pathDialog) return;
     const value = pathInput.trim();
     if (!value) return;
 
-    setPathDialogBusy(true);
-    try {
-      if (pathDialog.mode === 'create-folder') {
-        await pathDialog.onConfirm(value, pathDialogSaveSelectedFile);
-      } else {
-        await pathDialog.onConfirm(value);
-      }
-      setPathDialog(null);
-      setPathInput('');
-    } finally {
-      setPathDialogBusy(false);
+    const dialog = pathDialog;
+    setPathDialog(null);
+    setPathInput('');
+
+    if (dialog.mode === 'create-folder') {
+      void dialog.onConfirm(value, pathDialogSaveSelectedFile);
+    } else {
+      void dialog.onConfirm(value);
     }
   };
 
