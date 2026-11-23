@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { exists } from './fs.js';
+import { restorePackageFromDatabase, savePackageToDatabase } from '../services/packageCacheService.js';
 
 /**
  * Built-in Node.js core modules.
@@ -161,11 +162,22 @@ export async function ensureLocalNodeDependencies(snapshotRoot, entryFile, onLog
     return;
   }
 
-  // Check which packages are actually missing from node_modules
+  // Check which packages are missing from node_modules, and attempt restoring from MongoDB
   const missing = [];
+  const nodeModules = path.join(snapshotRoot, 'node_modules');
+  await fs.mkdir(nodeModules, { recursive: true }).catch(() => {});
+
   for (const pkg of packages) {
-    const pkgDir = path.join(snapshotRoot, 'node_modules', pkg);
-    if (!(await exists(pkgDir))) {
+    const pkgDir = path.join(nodeModules, pkg);
+    if (await exists(pkgDir)) {
+      continue;
+    }
+
+    // Try restoring directly from MongoDB
+    const restored = await restorePackageFromDatabase(pkg, 'node', nodeModules);
+    if (restored) {
+      if (onLog) onLog(`[SkyCode] Restored npm package ${pkg} from persistent database (0ms install).\r\n`);
+    } else {
       missing.push(pkg);
     }
   }
@@ -191,6 +203,21 @@ export async function ensureLocalNodeDependencies(snapshotRoot, entryFile, onLog
     const res = await runShort(npmCmd, ['install', '--no-audit', '--no-fund', ...missing], snapshotRoot, 120);
     if (res.exitCode === 0) {
       if (onLog) onLog(`[SkyCode] Ready: ${missing.join(', ')} installed.\r\n`);
+
+      // Save newly installed packages to database for permanent persistence across sessions
+      for (const pkg of missing) {
+        try {
+          const pkgDir = path.join(nodeModules, pkg);
+          if (await exists(pkgDir)) {
+            const saved = await savePackageToDatabase(pkg, 'node', nodeModules, pkg);
+            if (saved && onLog) {
+              onLog(`[SkyCode] Cached npm package ${pkg} in database for future instant runs.\r\n`);
+            }
+          }
+        } catch {
+          // Ignore DB save errors
+        }
+      }
     }
   } catch {
     // Proceed with execution

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { exists } from './fs.js';
+import { restorePackageFromDatabase, savePackageToDatabase } from '../services/packageCacheService.js';
 
 /**
  * Comprehensive set of Python standard library modules.
@@ -593,15 +594,59 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
     return;
   }
 
-  try {
-    if (onLog) {
-      onLog(`[SkyCode] Ready: Installing and preparing packages (${packages.join(', ')})...\r\n`);
+  const homeDir = process.env.HOME || (process.platform === 'win32' ? process.env.USERPROFILE : '/home/render');
+  const userSitePackages = path.join(homeDir || '', '.local', 'lib', 'python3.11', 'site-packages');
+  await fs.mkdir(userSitePackages, { recursive: true }).catch(() => {});
+
+  const missingFromDisk = [];
+
+  // Check if each package already exists in userSitePackages or can be restored from persistent database
+  for (const pkg of packages) {
+    const pkgNorm = pkg.toLowerCase().replace(/[-_]/g, '');
+    const entries = await fs.readdir(userSitePackages).catch(() => []);
+    const isInstalled = entries.some((e) => e.toLowerCase().replace(/[-_]/g, '').startsWith(pkgNorm));
+
+    if (isInstalled) {
+      continue;
     }
-    const installRes = await pipInstall(packages);
-    if (installRes.exitCode === 0) {
-      if (onLog) onLog(`[SkyCode] Environment ready: ${packages.join(', ')}.\r\n`);
+
+    // Attempt restoring instantly from MongoDB database
+    const restored = await restorePackageFromDatabase(pkg, 'python', userSitePackages);
+    if (restored) {
+      if (onLog) onLog(`[SkyCode] Restored ${pkg} from persistent database store (0ms install).\r\n`);
+    } else {
+      missingFromDisk.push(pkg);
     }
-  } catch {
-    // Execution will proceed with sitecustomize fallback
+  }
+
+  if (missingFromDisk.length > 0) {
+    try {
+      if (onLog) {
+        onLog(`[SkyCode] Installing missing packages (${missingFromDisk.join(', ')})...\r\n`);
+      }
+      const installRes = await pipInstall(missingFromDisk);
+      if (installRes.exitCode === 0) {
+        if (onLog) onLog(`[SkyCode] Ready: ${missingFromDisk.join(', ')} installed.\r\n`);
+
+        // Automatically archive and save newly installed packages to MongoDB so next time it is already installed!
+        for (const pkg of missingFromDisk) {
+          try {
+            const entries = await fs.readdir(userSitePackages).catch(() => []);
+            const pkgNorm = pkg.toLowerCase().replace(/[-_]/g, '');
+            const matching = entries.filter((e) => e.toLowerCase().replace(/[-_]/g, '').startsWith(pkgNorm));
+            if (matching.length > 0) {
+              const saved = await savePackageToDatabase(pkg, 'python', userSitePackages, matching);
+              if (saved && onLog) {
+                onLog(`[SkyCode] Cached ${pkg} in database for future instant runs.\r\n`);
+              }
+            }
+          } catch {
+            // Ignore DB cache errors
+          }
+        }
+      }
+    } catch {
+      // Execution will proceed with sitecustomize fallback
+    }
   }
 }
