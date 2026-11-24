@@ -58,13 +58,13 @@ export default function App() {
       {/* Signature Neo-Brutalist Loading Splash Screen Overlay */}
       {splashPhase !== 'hidden' && (
         <div
-          className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 nb-grid-bg transition-all duration-400 ${
-            splashPhase === 'exiting' ? 'opacity-0 scale-[0.98] pointer-events-none' : 'opacity-100 scale-100'
+          className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 nb-grid-bg transition-opacity duration-350 ${
+            splashPhase === 'exiting' ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
           style={{ background: 'var(--color-canvas)', transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)' }}
         >
           <div
-            className="flex flex-col items-center gap-3.5 px-8 py-7 nb-modal-anim w-full max-w-xs text-center"
+            className="flex flex-col items-center gap-3.5 px-8 py-7 nb-fade-in w-full max-w-xs text-center"
             style={{
               border: '3px solid #000',
               boxShadow: '8px 8px 0px 0px #000',
@@ -72,7 +72,7 @@ export default function App() {
             }}
           >
             <div
-              className="flex items-center justify-center overflow-hidden nb-smooth-pulse"
+              className="flex items-center justify-center overflow-hidden"
               style={{
                 width: 62,
                 height: 62,

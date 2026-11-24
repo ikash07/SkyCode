@@ -707,11 +707,11 @@ export function WorkspacePage() {
   if (!project) {
     return (
       <div
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 nb-grid-bg"
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 nb-grid-bg transition-opacity duration-300"
         style={{ background: 'var(--color-canvas)' }}
       >
         <div
-          className="flex flex-col items-center gap-3.5 px-8 py-7 nb-modal-anim w-full max-w-xs text-center"
+          className="flex flex-col items-center gap-3.5 px-8 py-7 nb-fade-in w-full max-w-xs text-center"
           style={{
             background: '#FFD93D',
             border: '3px solid #000',
@@ -719,7 +719,7 @@ export function WorkspacePage() {
           }}
         >
           <div
-            className="flex items-center justify-center overflow-hidden nb-smooth-pulse"
+            className="flex items-center justify-center overflow-hidden"
             style={{
               width: 62,
               height: 62,

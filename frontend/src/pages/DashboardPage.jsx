@@ -388,7 +388,7 @@ export function DashboardPage() {
               {loadingProjects ? (
                 <div className="flex h-52 flex-col items-center justify-center gap-3 p-6 text-center">
                   <div
-                    className="mx-auto flex h-12 w-12 items-center justify-center overflow-hidden nb-smooth-pulse"
+                    className="mx-auto flex h-12 w-12 items-center justify-center overflow-hidden"
                     style={{
                       background: '#280736',
                       border: '2px solid #000',

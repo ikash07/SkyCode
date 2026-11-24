@@ -404,6 +404,19 @@ body {
   animation: nb-progress-load 0.58s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Clean smooth fade-in for loading cards without popup jump */
+@keyframes nb-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.nb-fade-in {
+  animation: nb-fade-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Super smooth continuous infinite progress bar */
 @keyframes nb-progress-infinite {
   0% {
