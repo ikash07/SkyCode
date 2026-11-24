@@ -404,6 +404,40 @@ body {
   animation: nb-progress-load 0.58s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Super smooth continuous infinite progress bar */
+@keyframes nb-progress-infinite {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(10%);
+  }
+  100% {
+    transform: translateX(110%);
+  }
+}
+.nb-progress-infinite {
+  width: 100%;
+  animation: nb-progress-infinite 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+}
+
+/* Gentle, smooth breathing animation for loading logos */
+@keyframes nb-smooth-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 4px 4px 0px 0px #000;
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 6px 6px 0px 0px #000;
+  }
+}
+.nb-smooth-pulse {
+  animation: nb-smooth-pulse 1.8s ease-in-out infinite;
+  will-change: transform, box-shadow;
+}
+
 .nb-stagger-1 { animation-delay: 0.04s; }
 .nb-stagger-2 { animation-delay: 0.08s; }
 .nb-stagger-3 { animation-delay: 0.12s; }

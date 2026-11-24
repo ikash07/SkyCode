@@ -74,12 +74,13 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
 
     // Immediate terminal feedback: show running status & display command instantly!
     setRunningState(true);
+    const displayFile = fileToRun.includes(' ') ? `"${fileToRun}"` : fileToRun;
     const defaultCmd = fileToRun
-      ? (effectiveLanguage === 'javascript' ? `node ${fileToRun}`
-        : effectiveLanguage === 'cpp' ? `g++ ${fileToRun} -o program && ./program`
-        : effectiveLanguage === 'c' ? `gcc ${fileToRun} && ./a.out`
-        : effectiveLanguage === 'java' ? `javac ${fileToRun} && java Main`
-        : `python3 -u ${fileToRun}`)
+      ? (effectiveLanguage === 'javascript' ? `node ${displayFile}`
+        : effectiveLanguage === 'cpp' ? `g++ ${displayFile} -o program && ./program`
+        : effectiveLanguage === 'c' ? `gcc ${displayFile} && ./a.out`
+        : effectiveLanguage === 'java' ? `javac ${displayFile} && java Main`
+        : `python3 -u ${displayFile}`)
       : 'run';
     setHistory((prev) => [...prev, { type: 'command', content: `$ ${defaultCmd}` }]);
 

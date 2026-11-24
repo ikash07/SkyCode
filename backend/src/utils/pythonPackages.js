@@ -385,15 +385,25 @@ async function getPythonFiles(dir, maxDepth = 4) {
  * @returns {Promise<string[]>}  List of PyPI package names to install
  */
 export async function detectPythonDependencies(snapshotRoot, entryFile) {
-  const pyFiles = await getPythonFiles(snapshotRoot);
-  const targetPath = path.join(snapshotRoot, entryFile);
-  if (!pyFiles.includes(targetPath) && (await exists(targetPath))) {
-    pyFiles.push(targetPath);
+  const targetPath = path.join(snapshotRoot, entryFile || '');
+  const filesToScan = new Set();
+
+  if (entryFile && (await exists(targetPath))) {
+    filesToScan.add(targetPath);
+  } else {
+    const allPy = await getPythonFiles(snapshotRoot);
+    allPy.forEach((f) => filesToScan.add(f));
   }
 
+  const scanned = new Set();
+  const queue = [...filesToScan];
   const imports = new Set();
 
-  for (const file of pyFiles) {
+  while (queue.length > 0) {
+    const file = queue.shift();
+    if (scanned.has(file)) continue;
+    scanned.add(file);
+
     try {
       const source = await fs.readFile(file, 'utf8');
       for (const line of source.split(/\r?\n/)) {
@@ -409,11 +419,21 @@ export async function detectPythonDependencies(snapshotRoot, entryFile) {
 
         const importMatch = line.match(/^\s*import\s+([a-zA-Z0-9_.]+)/);
         if (importMatch) {
-          imports.add(importMatch[1].split('.')[0]);
+          const mod = importMatch[1].split('.')[0];
+          imports.add(mod);
+          const localPy = path.join(snapshotRoot, `${mod}.py`);
+          const localPkg = path.join(snapshotRoot, mod, '__init__.py');
+          if ((await exists(localPy)) && !scanned.has(localPy)) queue.push(localPy);
+          if ((await exists(localPkg)) && !scanned.has(localPkg)) queue.push(localPkg);
         }
         const fromMatch = line.match(/^\s*from\s+([a-zA-Z0-9_.]+)\s+import\s+/);
         if (fromMatch) {
-          imports.add(fromMatch[1].split('.')[0]);
+          const mod = fromMatch[1].split('.')[0];
+          imports.add(mod);
+          const localPy = path.join(snapshotRoot, `${mod}.py`);
+          const localPkg = path.join(snapshotRoot, mod, '__init__.py');
+          if ((await exists(localPy)) && !scanned.has(localPy)) queue.push(localPy);
+          if ((await exists(localPkg)) && !scanned.has(localPkg)) queue.push(localPkg);
         }
       }
     } catch {
@@ -698,38 +718,55 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
   }
 
   if (missingFromDisk.length > 0) {
-    for (const pkg of missingFromDisk) {
-      try {
-        if (onLog) {
-          onLog(`[SkyCode] Installing ${pkg}...\r\n`);
-        }
-        const installRes = await pipInstall(['--force-reinstall', pkg]);
-        if (installRes.exitCode === 0) {
-          verifiedImportableCache.add(pkg);
-          if (onLog) onLog(`[SkyCode] Ready: ${pkg} installed.\r\n`);
+    if (onLog) {
+      onLog(`[SkyCode] Installing missing dependencies: ${missingFromDisk.join(', ')}...\r\n`);
+    }
 
-          // Automatically archive and save newly installed package to MongoDB
-          try {
-            const entries = await fs.readdir(userSitePackages).catch(() => []);
-            const pkgNorm = pkg.toLowerCase().replace(/[-_]/g, '');
-            const extraDirs = MODULE_DIR_MAP[pkg] || [];
-            const matching = entries.filter((e) => {
-              const norm = e.toLowerCase().replace(/[-_]/g, '');
-              if (norm.startsWith(pkgNorm)) return true;
-              return extraDirs.some((dir) => e === dir || e.startsWith(dir));
-            });
-            if (matching.length > 0) {
-              const saved = await savePackageToDatabase(pkg, 'python', userSitePackages, matching);
-              if (saved && onLog) {
-                onLog(`[SkyCode] Cached ${pkg} in database for future instant runs.\r\n`);
-              }
-            }
-          } catch {
-            // Ignore DB cache errors
+    // Fast Strategy: Attempt installing all missing packages in 1 batch pip command
+    const batchRes = await pipInstall(missingFromDisk);
+    const successfullyInstalled = [];
+
+    if (batchRes.exitCode === 0) {
+      successfullyInstalled.push(...missingFromDisk);
+      if (onLog) {
+        onLog(`[SkyCode] Ready: ${missingFromDisk.join(', ')} installed.\r\n`);
+      }
+    } else {
+      // Fallback: try one by one only if combined batch failed
+      for (const pkg of missingFromDisk) {
+        try {
+          if (onLog) onLog(`[SkyCode] Installing ${pkg}...\r\n`);
+          const singleRes = await pipInstall([pkg]);
+          if (singleRes.exitCode === 0) {
+            successfullyInstalled.push(pkg);
+            if (onLog) onLog(`[SkyCode] Ready: ${pkg} installed.\r\n`);
+          }
+        } catch {
+          // Continue
+        }
+      }
+    }
+
+    // Register all successfully installed packages & cache to MongoDB
+    for (const pkg of successfullyInstalled) {
+      verifiedImportableCache.add(pkg);
+      try {
+        const entries = await fs.readdir(userSitePackages).catch(() => []);
+        const pkgNorm = pkg.toLowerCase().replace(/[-_]/g, '');
+        const extraDirs = MODULE_DIR_MAP[pkg] || [];
+        const matching = entries.filter((e) => {
+          const norm = e.toLowerCase().replace(/[-_]/g, '');
+          if (norm.startsWith(pkgNorm)) return true;
+          return extraDirs.some((dir) => e === dir || e.startsWith(dir));
+        });
+        if (matching.length > 0) {
+          const saved = await savePackageToDatabase(pkg, 'python', userSitePackages, matching);
+          if (saved && onLog) {
+            onLog(`[SkyCode] Cached ${pkg} in database for future instant runs.\r\n`);
           }
         }
       } catch {
-        // Continue to next package
+        // Ignore DB cache errors
       }
     }
   }

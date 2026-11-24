@@ -386,20 +386,23 @@ export function DashboardPage() {
 
             <div className="flex-1 overflow-y-auto max-h-[400px]">
               {loadingProjects ? (
-                <div className="flex h-48 flex-col items-center justify-center gap-3 p-6 text-center">
+                <div className="flex h-52 flex-col items-center justify-center gap-3 p-6 text-center">
                   <div
-                    className="mx-auto flex h-10 w-10 items-center justify-center overflow-hidden"
+                    className="mx-auto flex h-12 w-12 items-center justify-center overflow-hidden nb-smooth-pulse"
                     style={{
                       background: '#280736',
                       border: '2px solid #000',
                       boxShadow: '3px 3px 0px 0px #000',
                     }}
                   >
-                    <img src="/logo-icon.png" alt="" className="h-full w-full object-cover animate-pulse" />
+                    <img src="/logo-icon.png" alt="" className="h-full w-full object-cover" />
                   </div>
-                  <p className="font-black text-xs uppercase tracking-widest" style={{ color: 'var(--color-muted)' }}>
+                  <p className="font-black text-xs uppercase tracking-widest text-black/75">
                     Loading Projects…
                   </p>
+                  <div className="w-32 h-2 bg-black/15 border border-black overflow-hidden mt-1">
+                    <div className="h-full bg-black nb-progress-infinite" />
+                  </div>
                 </div>
               ) : projects.length === 0 ? (
                 <div className="flex h-48 flex-col items-center justify-center gap-3 p-6 text-center">

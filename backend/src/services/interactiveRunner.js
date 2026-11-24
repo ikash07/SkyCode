@@ -175,7 +175,8 @@ export async function spawnInteractiveExecution(input) {
       });
     } else if (isPython) {
       const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-      commandString = `${pythonCmd} -u ${entryFile}`;
+      const quotedEntry = entryFile.includes(' ') ? `"${entryFile}"` : entryFile;
+      commandString = `${pythonCmd} -u ${quotedEntry}`;
 
       // Auto-install missing Python dependencies before execution
       try {

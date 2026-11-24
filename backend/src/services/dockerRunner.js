@@ -38,8 +38,10 @@ function runProcess(command, args, timeoutSeconds, stdin = '', options = {}) {
     let stderr = '';
     let finished = false;
 
-    if (stdin && child.stdin) {
-      child.stdin.write(stdin);
+    if (child.stdin) {
+      if (stdin) {
+        child.stdin.write(stdin);
+      }
       child.stdin.end();
     }
 
