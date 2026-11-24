@@ -16,19 +16,21 @@ export default function App() {
       setSplashPhase('exiting');
       const exitTimer = setTimeout(() => {
         setSplashPhase('hidden');
-      }, 320);
+      }, 450);
       return () => clearTimeout(exitTimer);
-    }, 620);
+    }, 820);
 
     return () => clearTimeout(timer);
   }, []);
 
   return (
     <>
-      {/* Underlying Routes - Mounted and ready to reveal */}
+      {/* Underlying Routes - Smoothly cross-dissolves into view */}
       <div
-        className={`min-h-screen transition-opacity duration-300 ${
-          splashPhase === 'visible' ? 'opacity-0' : 'opacity-100'
+        className={`min-h-screen transition-all duration-500 ease-out ${
+          splashPhase === 'visible'
+            ? 'opacity-0 scale-[0.99] blur-[1px]'
+            : 'opacity-100 scale-100 blur-0'
         }`}
         style={{ transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)' }}
       >
@@ -58,13 +60,13 @@ export default function App() {
       {/* Signature Neo-Brutalist Loading Splash Screen Overlay */}
       {splashPhase !== 'hidden' && (
         <div
-          className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 nb-grid-bg transition-opacity duration-350 ${
+          className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 nb-grid-bg transition-opacity duration-450 ${
             splashPhase === 'exiting' ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
           style={{ background: 'var(--color-canvas)', transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)' }}
         >
           <div
-            className="flex flex-col items-center gap-3.5 px-8 py-7 nb-fade-in w-full max-w-xs text-center"
+            className={`nb-splash-card ${splashPhase === 'exiting' ? 'exiting' : ''} flex flex-col items-center gap-3.5 px-8 py-7 w-full max-w-xs text-center select-none`}
             style={{
               border: '3px solid #000',
               boxShadow: '8px 8px 0px 0px #000',

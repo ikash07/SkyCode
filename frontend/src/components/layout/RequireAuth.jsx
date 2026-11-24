@@ -11,7 +11,7 @@ export function RequireAuth({ children }) {
         style={{ background: 'var(--color-canvas)' }}
       >
         <div
-          className="flex flex-col items-center gap-3.5 px-8 py-7 nb-fade-in w-full max-w-xs text-center"
+          className="nb-splash-card flex flex-col items-center gap-3.5 px-8 py-7 w-full max-w-xs text-center select-none"
           style={{
             background: '#FFD93D',
             border: '3px solid #000',
