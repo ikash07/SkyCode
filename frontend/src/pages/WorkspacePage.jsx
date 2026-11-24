@@ -213,6 +213,37 @@ export function WorkspacePage() {
         }
       }
 
+      // If bundle had no files (e.g. older backend deployment), pre-fetch all files from tree in parallel
+      if (preloadedFiles.length === 0 && treeFiles.length > 0) {
+        const textPaths = [];
+        const walkTree = (nodes) => {
+          for (const n of nodes) {
+            if (n.type === 'file') {
+              const lower = n.name.toLowerCase();
+              if (!lower.endsWith('.zip') && !lower.endsWith('.tar.gz') && !lower.endsWith('.tar') && !lower.endsWith('.rar')) {
+                textPaths.push(n.path);
+              }
+            } else if (n.children) {
+              walkTree(n.children);
+            }
+          }
+        };
+        walkTree(treeFiles);
+
+        await Promise.all(
+          textPaths.map((p) =>
+            readFileRequest(targetId, p)
+              .then((file) => {
+                if (file && typeof file.content === 'string') {
+                  fileContentsRef.current[file.path] = file.content;
+                  fileContentsRef.current[file.path.toLowerCase()] = file.content;
+                }
+              })
+              .catch(() => {})
+          )
+        );
+      }
+
       // 3. Auto-create starter file if project has no files
       if (treeFiles.length === 0 && nextProject) {
         const defaultEntryMap = {
