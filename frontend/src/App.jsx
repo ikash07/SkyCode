@@ -83,9 +83,7 @@ export default function App() {
               <img src="/logo-icon.png" alt="SkyCode" width={62} height={62} fetchPriority="high" className="w-full h-full object-cover" />
             </div>
             <div className="text-2xl font-black uppercase tracking-tight text-black">SkyCode</div>
-            <div className="text-xs font-black uppercase tracking-widest text-black/75">
-              {user ? 'Loading Dashboard…' : 'Loading Login Page…'}
-            </div>
+            <div className="text-xs font-black uppercase tracking-widest text-black/75">Loading Login Page…</div>
 
             {/* Smooth animated progress line */}
             <div className="w-full h-2.5 bg-black/15 border-2 border-black mt-2 overflow-hidden">
