@@ -35,8 +35,10 @@ export async function copyDirectory(source, destination) {
   await fs.cp(source, destination, {
     recursive: true,
     filter: (src) => {
-      const name = path.basename(src);
-      return name !== 'node_modules' && name !== '.git' && name !== 'dist' && name !== '.cache';
+      const name = path.basename(src).toLowerCase();
+      if (name === 'node_modules' || name === '.git' || name === 'dist' || name === '.cache') return false;
+      if (name.endsWith('.zip') || name.endsWith('.tar.gz') || name.endsWith('.tar') || name.endsWith('.rar')) return false;
+      return true;
     }
   });
 }

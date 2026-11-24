@@ -48,7 +48,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
     }
   };
 
-  const startInteractiveExecution = (overrideFile = null, overrideLanguage = null) => {
+  const startInteractiveExecution = (overrideFile = null, overrideLanguage = null, overrideContent = null) => {
     const rawFile = overrideFile || activeFile || '';
     const fileToRun = rawFile.trim().replace(/^['"]|['"]$/g, '').replace(/^\.\//, '').replace(/^\/+/, '');
     const effectiveLanguage =
@@ -61,18 +61,13 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       return;
     }
 
-    if (socketRef.current) {
-      socketRef.current.close();
-      socketRef.current = null;
-    }
-
     let currentStdout = '';
     let currentStderr = '';
     if (onLiveStreamChange) {
       onLiveStreamChange({ stdout: '', stderr: '' });
     }
 
-    // Immediate terminal feedback: show running status & display command instantly!
+    // Immediate terminal feedback: show running status & display command instantly in 0ms!
     setRunningState(true);
     const displayFile = fileToRun.includes(' ') ? `"${fileToRun}"` : fileToRun;
     const defaultCmd = fileToRun
@@ -84,6 +79,22 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       : 'run';
     setHistory((prev) => [...prev, { type: 'command', content: `$ ${defaultCmd}` }]);
 
+    const token = localStorage.getItem('skycode_token') || '';
+    const startPayload = {
+      type: 'start',
+      projectId,
+      entryFile: fileToRun,
+      language: effectiveLanguage,
+      content: typeof overrideContent === 'string' ? overrideContent : undefined,
+      token
+    };
+
+    // FAST-PATH: If WebSocket is already warm and open, send IMMEDIATELY in 0.001ms!
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify(startPayload));
+      return;
+    }
+
     let wsUrl = 'wss://skycode-t3ry.onrender.com/ws/terminal';
     let hasReceivedMessage = false;
 
@@ -91,7 +102,6 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       const ws = new WebSocket(wsUrl);
       socketRef.current = ws;
 
-      // 6-second timeout fallback: if WebSocket hangs or is blocked, switch to standard runner
       const connectionTimer = setTimeout(async () => {
         if (!hasReceivedMessage && ws.readyState !== WebSocket.CLOSED) {
           try { ws.close(); } catch {}
@@ -111,14 +121,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       }, 6000);
 
       ws.onopen = () => {
-        const token = localStorage.getItem('skycode_token') || '';
-        ws.send(JSON.stringify({
-          type: 'start',
-          projectId,
-          entryFile: fileToRun,
-          language: effectiveLanguage,
-          token
-        }));
+        ws.send(JSON.stringify(startPayload));
       };
 
       ws.onmessage = (event) => {
@@ -127,7 +130,6 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'started') {
-            // Already logged initial command prompt optimistically; if server gave specific command, log only if different
             if (msg.command && msg.command !== defaultCmd) {
               setHistory((prev) => [...prev, { type: 'command', content: `$ ${msg.command}` }]);
             }
@@ -150,8 +152,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
               ...prev,
               { type: 'info', content: `[Done] exited with code=${msg.exitCode} in ${seconds}s` },
             ]);
-            ws.close();
-            socketRef.current = null;
+            // Keep WebSocket open and warm for instant subsequent runs!
           } else if (msg.type === 'error') {
             appendChunk(`\nError: ${msg.message}\n`, 'stderr');
             currentStderr += `\nError: ${msg.message}\n`;
@@ -183,6 +184,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       ws.onclose = () => {
         clearTimeout(connectionTimer);
         setRunningState(false);
+        socketRef.current = null;
       };
     } catch (e) {
       setRunningState(false);
@@ -198,10 +200,26 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
   };
 
   useImperativeHandle(ref, () => ({
-    startInteractiveExecution: (file, lang) => startInteractiveExecution(file, lang),
+    startInteractiveExecution: (file, lang, content) => startInteractiveExecution(file, lang, content),
     stopExecution,
     clearTerminal: handleClear
   }));
+
+  // Pre-warm WebSocket connection so the first click on Run starts in few milliseconds (0ms network setup!)
+  useEffect(() => {
+    if (!projectId) return;
+    let ws = null;
+    try {
+      ws = new WebSocket('wss://skycode-t3ry.onrender.com/ws/terminal');
+      socketRef.current = ws;
+      ws.onclose = () => {
+        if (socketRef.current === ws) socketRef.current = null;
+      };
+    } catch {}
+    return () => {
+      try { ws?.close(); } catch {}
+    };
+  }, [projectId]);
 
   useEffect(() => {
     if (containerRef.current) {

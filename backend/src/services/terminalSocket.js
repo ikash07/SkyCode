@@ -5,8 +5,10 @@ import { getProjectDetails } from './projectService.js';
 import { spawnInteractiveExecution } from './interactiveRunner.js';
 import { Execution } from '../models/Execution.js';
 import { Project } from '../models/Project.js';
+import { FileEntry } from '../models/FileEntry.js';
 import { exists } from '../utils/fs.js';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 
 function verifyToken(token) {
   try {
@@ -110,6 +112,19 @@ export function setupTerminalSocket(server) {
           currentProjectId = message.projectId;
           const project = await getProjectDetails(currentProjectId, currentUserId);
           const resolvedEntry = message.entryFile.replace(/^\/+/, '').replace(/\\+/g, '/');
+
+          // Direct instant write of edited code: eliminates pre-execution HTTP roundtrip latency completely!
+          if (typeof message.content === 'string') {
+            const targetPath = path.join(project.rootPath, resolvedEntry);
+            await fs.mkdir(path.dirname(targetPath), { recursive: true });
+            await fs.writeFile(targetPath, message.content, 'utf8');
+            FileEntry.updateOne(
+              { projectId: currentProjectId, path: resolvedEntry },
+              { $set: { content: message.content, size: Buffer.byteLength(message.content, 'utf8'), updatedAt: new Date() } },
+              { upsert: true }
+            ).catch(() => {});
+          }
+
           const entryExists = await exists(path.join(project.rootPath, resolvedEntry));
           if (!entryExists) {
             ws.send(JSON.stringify({ type: 'error', message: 'Entry file does not exist' }));

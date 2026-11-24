@@ -45,6 +45,7 @@ export function WorkspacePage() {
 
   const [sidebarView, setSidebarView] = useState('explorer');
   const [currentProjectId, setCurrentProjectId] = useState(projectId);
+  const [isWorkspaceReady, setIsWorkspaceReady] = useState(false);
   const [project, setProject] = useState(() => initialWorkspace?.project || null);
   const [tree, setTree] = useState(() => initialWorkspace?.tree || []);
   const [openFiles, setOpenFiles] = useState(() => initialWorkspace?.openFiles || []);
@@ -53,6 +54,7 @@ export function WorkspacePage() {
   // Synchronously adjust state during render when switching projects (0ms instant transition, zero frame lag)
   if (currentProjectId !== projectId) {
     setCurrentProjectId(projectId);
+    setIsWorkspaceReady(false);
 
     let cached = null;
     try {
@@ -178,74 +180,76 @@ export function WorkspacePage() {
   const loadWorkspace = async (targetId = projectId) => {
     if (!targetId) return;
 
-    // Kick off active file read immediately in parallel with workspace metadata
-    const curActive = activeFileRef.current;
-    const activeFilePromise = curActive
-      ? readFileRequest(targetId, curActive).catch(() => null)
-      : Promise.resolve(null);
+    try {
+      // 1. Kick off active file read immediately in parallel with workspace metadata & tree
+      const curActive = activeFileRef.current;
+      const activeFilePromise = curActive
+        ? readFileRequest(targetId, curActive).catch(() => null)
+        : Promise.resolve(null);
 
-    const [nextProject, nextTree, history, activeFileData] = await Promise.all([
-      getProjectRequest(targetId),
-      treeRequest(targetId),
-      executionHistoryRequest(targetId),
-      activeFilePromise
-    ]);
+      const [nextProject, nextTree, history, activeFileData] = await Promise.all([
+        getProjectRequest(targetId),
+        treeRequest(targetId),
+        executionHistoryRequest(targetId).catch(() => []),
+        activeFilePromise
+      ]);
 
-    if (targetId !== projectId) return;
+      if (targetId !== projectId) return;
 
-    setProject(nextProject);
-    setTree(nextTree);
-    setLatestExecution(history[0] ?? null);
+      let treeFiles = nextTree || [];
 
-    if (activeFileData && activeFileData.content !== undefined) {
-      fileContentsRef.current[activeFileData.path] = activeFileData.content;
-      setOpenFiles((current) =>
-        current.map((f) => (f.path.toLowerCase() === activeFileData.path.toLowerCase() ? { ...f, path: activeFileData.path, content: activeFileData.content } : f))
-      );
-    }
-
-    let treeFiles = nextTree;
-    // Auto-create starter file if project has no files
-    if (nextTree.length === 0 && nextProject) {
-      const defaultEntryMap = {
-        python: 'main.py',
-        javascript: 'index.js',
-        c: 'main.c',
-        java: 'Main.java'
-      };
-      const defaultContentMap = {
-        python: 'print("Hello from SkyCode!")\n',
-        javascript: 'console.log("Hello from SkyCode!");\n',
-        c: '#include <stdio.h>\n\nint main() {\n    printf("Hello from SkyCode!\\n");\n    return 0;\n}\n',
-        java: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello from SkyCode!");\n    }\n}\n'
-      };
-      const lang = nextProject.language || 'python';
-      const initialFile = defaultEntryMap[lang] || 'main.py';
-      const initialContent = defaultContentMap[lang] || 'print("Hello from SkyCode!")\n';
-      try {
-        await saveFileRequest(targetId, initialFile, initialContent);
-        treeFiles = await treeRequest(targetId);
-        if (targetId === projectId) setTree(treeFiles);
-      } catch (err) {
-        console.warn('Initial starter file setup:', err);
-      }
-    }
-
-    // Auto-open entry file so the editor canvas is never blank if nothing is open
-    if (!activeFileRef.current && treeFiles.length > 0) {
-      const preferred = guessEntryFile(treeFiles, nextProject?.language ?? 'python');
-      if (preferred) {
+      // 2. Auto-create starter file if project has no files
+      if (treeFiles.length === 0 && nextProject) {
+        const defaultEntryMap = {
+          python: 'main.py',
+          javascript: 'index.js',
+          c: 'main.c',
+          java: 'Main.java',
+          cpp: 'main.cpp'
+        };
+        const defaultContentMap = {
+          python: 'print("Hello from SkyCode!")\n',
+          javascript: 'console.log("Hello from SkyCode!");\n',
+          c: '#include <stdio.h>\n\nint main() {\n    printf("Hello from SkyCode!\\n");\n    return 0;\n}\n',
+          java: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello from SkyCode!");\n    }\n}\n',
+          cpp: '#include <iostream>\n\nint main() {\n    std::cout << "Hello from SkyCode!" << std::endl;\n    return 0;\n}\n'
+        };
+        const lang = nextProject.language || 'python';
+        const initialFile = defaultEntryMap[lang] || 'main.py';
+        const initialContent = defaultContentMap[lang] || 'print("Hello from SkyCode!")\n';
         try {
-          const file = await readFileRequest(targetId, preferred);
-          if (targetId === projectId) {
-            fileContentsRef.current[file.path] = file.content;
-            setOpenFiles([{ path: file.path, content: file.content, dirty: false }]);
-            setActiveFile(file.path);
-          }
-        } catch (e) {
-          console.warn('Auto open entry file:', e);
+          await saveFileRequest(targetId, initialFile, initialContent);
+          treeFiles = await treeRequest(targetId);
+        } catch (err) {
+          console.warn('Initial starter file setup:', err);
         }
       }
+
+      // 3. Ensure the active entry file and its code are COMPLETELY loaded before completing loading screen!
+      let resolvedFile = activeFileData;
+      if (!resolvedFile || resolvedFile.content === undefined) {
+        const preferred = curActive || (treeFiles.length > 0 ? guessEntryFile(treeFiles, nextProject?.language ?? 'python') : null);
+        if (preferred) {
+          try {
+            resolvedFile = await readFileRequest(targetId, preferred);
+          } catch (e) {
+            console.warn('Pre-load preferred file error:', e);
+          }
+        }
+      }
+
+      if (resolvedFile && resolvedFile.content !== undefined) {
+        fileContentsRef.current[resolvedFile.path] = resolvedFile.content;
+        setOpenFiles([{ path: resolvedFile.path, content: resolvedFile.content, dirty: false }]);
+        setActiveFile(resolvedFile.path);
+      }
+
+      setProject(nextProject);
+      setTree(treeFiles);
+      setLatestExecution(history[0] ?? null);
+    } finally {
+      // 4. Everything (metadata, files, tree, active code) is fully loaded!
+      setIsWorkspaceReady(true);
     }
   };
 
@@ -436,29 +440,23 @@ export function WorkspacePage() {
       openFilesRef.current.find((f) => cleanPath(f.path).toLowerCase() === targetFile.toLowerCase())?.content ??
       '';
 
-    // 5. Fast concurrent save with timeout: saves all files in parallel without blocking execution
+    // 5. Fire background file saves non-blockingly so execution is instant (0ms delay)
     try {
-      const savePromises = [];
-      savePromises.push(saveFileRequest(projectId, canonicalTarget, contentToSave));
+      saveFileRequest(projectId, canonicalTarget, contentToSave).catch(() => {});
       if (targetFile !== canonicalTarget) {
-        savePromises.push(saveFileRequest(projectId, targetFile, contentToSave).catch(() => {}));
+        saveFileRequest(projectId, targetFile, contentToSave).catch(() => {});
       }
       for (const doc of openFilesRef.current) {
         if (doc.dirty && cleanPath(doc.path) !== canonicalTarget && cleanPath(doc.path) !== targetFile) {
           const docContent = fileContentsRef.current[doc.path] ?? doc.content;
           if (docContent !== undefined) {
-            savePromises.push(saveFileRequest(projectId, doc.path, docContent).catch(() => {}));
+            saveFileRequest(projectId, doc.path, docContent).catch(() => {});
           }
         }
       }
-      // Run concurrent saves; do not freeze UI if network is slow
-      await Promise.race([
-        Promise.all(savePromises),
-        new Promise((resolve) => setTimeout(resolve, 1200))
-      ]);
       setOpenFiles((current) => current.map((f) => ({ ...f, dirty: false })));
     } catch (err) {
-      console.warn('Pre-execution save failed:', err);
+      console.warn('Background save error:', err);
     }
 
     const effectiveLanguage = detectLanguageFromPath(canonicalTarget) || (projectRef.current?.language || 'python');
@@ -475,21 +473,20 @@ export function WorkspacePage() {
 
       if (!hasPackageJson) {
         try {
-          await saveFileRequest(
+          saveFileRequest(
             projectId,
             'package.json',
             JSON.stringify({ name: 'my-app', version: '1.0.0', type: 'commonjs' }, null, 2)
-          );
-          void treeRequest(projectId).then(setTree);
+          ).then(() => treeRequest(projectId).then(setTree)).catch(() => {});
         } catch (e) {
           console.warn('Auto package.json setup:', e);
         }
       }
     }
 
-    // 7. Run immediately in interactive terminal
+    // 7. Run immediately in interactive terminal with content override (0ms latency!)
     if (terminalRef.current && terminalRef.current.startInteractiveExecution) {
-      terminalRef.current.startInteractiveExecution(canonicalTarget, effectiveLanguage);
+      terminalRef.current.startInteractiveExecution(canonicalTarget, effectiveLanguage, contentToSave);
       return;
     }
 
@@ -704,7 +701,7 @@ export function WorkspacePage() {
     }
   };
 
-  if (!project) {
+  if (!isWorkspaceReady || !project) {
     return (
       <div
         className="fixed inset-0 z-[9999] flex items-center justify-center p-4 nb-grid-bg transition-opacity duration-300"

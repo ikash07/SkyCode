@@ -313,6 +313,46 @@ try:
                     pass
 except Exception:
     pass
+
+# 4. Universal PyAudio Cloud Compatibility Bridge
+# Pre-populates sys.modules so SpeechRecognition and audio scripts execute in headless cloud with zero errors
+try:
+    if 'pyaudio' not in sys.modules:
+        import types
+        _pa = types.ModuleType('pyaudio')
+        _pa.__file__ = '<skycode_pyaudio>'
+        _pa.__version__ = '0.2.14'
+        _pa.paFloat32, _pa.paInt32, _pa.paInt24, _pa.paInt16 = 1, 2, 4, 8
+        _pa.paInt8, _pa.paUInt8, _pa.paCustomFormat = 16, 32, 65536
+        _pa.paNoFlag, _pa.paClipOff, _pa.paDitherOff = 0, 1, 2
+        _pa.paContinue, _pa.paComplete, _pa.paAbort = 0, 1, 2
+        _pa.get_sample_size = lambda fmt: 2
+        class _SkyStream:
+            def __init__(self, *args, **kwargs): self._active = True
+            def read(self, n, *a, **k): return b'\\x00' * (n * 2)
+            def write(self, *a, **k): pass
+            def start_stream(self): self._active = True
+            def stop_stream(self): self._active = False
+            def close(self): self._active = False
+            def is_active(self): return self._active
+            def is_stopped(self): return not self._active
+        class _SkyPyAudio:
+            def __init__(self, *args, **kwargs): pass
+            def get_device_count(self): return 1
+            def get_default_input_device_info(self):
+                return {'index': 0, 'name': 'SkyCode Virtual Microphone', 'maxInputChannels': 2, 'maxOutputChannels': 2, 'defaultSampleRate': 16000.0, 'hostApi': 0}
+            def get_device_info_by_index(self, idx): return self.get_default_input_device_info()
+            def get_device_info_by_host_api_device_index(self, h, idx): return self.get_default_input_device_info()
+            def get_host_api_info_by_index(self, idx): return {'index': 0, 'name': 'SkyCode Audio', 'deviceCount': 1, 'defaultInputDevice': 0, 'defaultOutputDevice': 0}
+            def get_default_host_api_info(self): return self.get_host_api_info_by_index(0)
+            def open(self, *args, **kwargs): return _SkyStream(*args, **kwargs)
+            def terminate(self): pass
+            def get_sample_size(self, fmt): return 2
+        _pa.Stream = _SkyStream
+        _pa.PyAudio = _SkyPyAudio
+        sys.modules['pyaudio'] = _pa
+except Exception:
+    pass
 `;
 
 /**
@@ -625,6 +665,10 @@ export async function ensureLocalPythonDependencies(snapshotRoot, entryFile, onL
       const shimFile = path.join(sDir, 'pyaudio.py');
       if (!(await exists(shimFile))) {
         await fs.writeFile(shimFile, PYAUDIO_MODULE_CODE, 'utf8');
+      }
+      const scFile = path.join(sDir, 'sitecustomize.py');
+      if (!(await exists(scFile))) {
+        await fs.writeFile(scFile, SITECUSTOMIZE_CODE, 'utf8');
       }
     } catch {}
   }

@@ -17,7 +17,7 @@ export const BottomPanel = memo(forwardRef(function BottomPanel(
   const terminalPanelRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
-    startInteractiveExecution: (file, lang) => terminalPanelRef.current?.startInteractiveExecution?.(file, lang),
+    startInteractiveExecution: (file, lang, content) => terminalPanelRef.current?.startInteractiveExecution?.(file, lang, content),
     stopExecution: () => terminalPanelRef.current?.stopExecution?.(),
     clearTerminal: () => {
       terminalPanelRef.current?.clearTerminal?.();
