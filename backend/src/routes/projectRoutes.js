@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { create, destroy, download, explorer, folderCreate, fileRead, fileWrite, index, itemDelete, itemRename, refresh, search, show, update, upload } from '../controllers/projectController.js';
+import { create, destroy, download, explorer, filesBundle, folderCreate, fileRead, fileWrite, index, itemDelete, itemRename, refresh, search, show, update, upload } from '../controllers/projectController.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const uploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 20 } });
@@ -14,6 +14,7 @@ projectRoutes.get('/:projectId', show);
 projectRoutes.put('/:projectId', update);
 projectRoutes.delete('/:projectId', destroy);
 projectRoutes.get('/:projectId/tree', explorer);
+projectRoutes.get('/:projectId/bundle', filesBundle);
 projectRoutes.get('/:projectId/refresh', refresh);
 projectRoutes.get('/:projectId/search', search);
 projectRoutes.get('/:projectId/download', download);

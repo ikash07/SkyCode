@@ -3,7 +3,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { AppError } from '../utils/appError.js';
-import { createProject, deleteItem, deleteProject, getProjectDetails, getProjectExplorer, listProjects, listTree, readProjectFile, renameItem, saveProjectFile, searchProjectFiles, syncProjectMetadata, createFolder, updateProject } from '../services/projectService.js';
+import { createProject, deleteItem, deleteProject, getProjectDetails, getProjectExplorer, listProjects, listTree, getProjectFilesBundle, readProjectFile, renameItem, saveProjectFile, searchProjectFiles, syncProjectMetadata, createFolder, updateProject } from '../services/projectService.js';
 import { createZipArchive } from '../utils/archive.js';
 import { projectsRoot } from '../utils/runtimePaths.js';
 
@@ -57,6 +57,11 @@ export const destroy = asyncHandler(async (req, res) => {
 export const explorer = asyncHandler(async (req, res) => {
   const tree = await listTree(req.params.projectId, req.auth.sub);
   res.json({ tree });
+});
+
+export const filesBundle = asyncHandler(async (req, res) => {
+  const bundle = await getProjectFilesBundle(req.params.projectId, req.auth.sub);
+  res.json(bundle);
 });
 
 export const fileRead = asyncHandler(async (req, res) => {

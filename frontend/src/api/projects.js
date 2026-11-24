@@ -29,6 +29,11 @@ export async function treeRequest(projectId) {
   return response.data.tree;
 }
 
+export async function bundleRequest(projectId) {
+  const response = await api.get(`/projects/${projectId}/bundle`);
+  return response.data;
+}
+
 export async function readFileRequest(projectId, filePath) {
   const response = await api.get(`/projects/${projectId}/files/${encodeURIComponent(filePath)}`);
   return response.data.file;

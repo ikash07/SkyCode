@@ -90,6 +90,60 @@ export async function listTree(projectId, userId) {
   return createTree(project.rootPath);
 }
 
+const BINARY_EXTS = new Set([
+  '.zip', '.tar', '.gz', '.tgz', '.rar', '.7z',
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico',
+  '.exe', '.bin', '.dll', '.so', '.dylib', '.iso',
+  '.pdf', '.mp3', '.mp4', '.wav', '.ogg', '.webm',
+  '.pyc', '.class', '.o', '.obj'
+]);
+
+const IGNORED_BUNDLE_DIRS = new Set([
+  'node_modules', '.git', '.cache', 'dist', 'build', '__pycache__', '.venv', 'venv'
+]);
+
+async function collectTextFiles(rootPath, currentDir = rootPath) {
+  const entries = await fs.promises.readdir(currentDir, { withFileTypes: true }).catch(() => []);
+  const result = [];
+
+  for (const entry of entries) {
+    if (IGNORED_BUNDLE_DIRS.has(entry.name) || (entry.name.startsWith('.') && entry.name !== '.env')) {
+      continue;
+    }
+
+    const fullPath = path.join(currentDir, entry.name);
+    const relPath = path.relative(rootPath, fullPath).replace(/\\+/g, '/');
+
+    if (entry.isDirectory()) {
+      const sub = await collectTextFiles(rootPath, fullPath);
+      result.push(...sub);
+    } else {
+      const ext = path.extname(entry.name).toLowerCase();
+      if (BINARY_EXTS.has(ext)) continue;
+
+      try {
+        const stats = await fs.promises.stat(fullPath);
+        if (stats.size > 2 * 1024 * 1024) continue; // Skip files > 2MB
+        const content = await fs.promises.readFile(fullPath, 'utf8');
+        result.push({ path: relPath, content, size: stats.size });
+      } catch {
+        // Skip unreadable files
+      }
+    }
+  }
+
+  return result;
+}
+
+export async function getProjectFilesBundle(projectId, userId) {
+  const project = await getOwnedProject(projectId, userId);
+  const [tree, files] = await Promise.all([
+    createTree(project.rootPath),
+    collectTextFiles(project.rootPath)
+  ]);
+  return { tree, files };
+}
+
 export async function readProjectFile(projectId, userId, relativePath) {
   const project = await getOwnedProject(projectId, userId);
   const normalizedPath = normalizeRelativePath(relativePath);

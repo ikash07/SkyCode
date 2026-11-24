@@ -9,6 +9,7 @@ import { FileTabs } from '../components/editor/FileTabs';
 import { CodeEditor } from '../components/editor/CodeEditor';
 import { BottomPanel } from '../components/editor/BottomPanel';
 import {
+  bundleRequest,
   createFolderRequest,
   deleteItemRequest,
   executionHistoryRequest,
@@ -74,7 +75,10 @@ export function WorkspacePage() {
 
     const contentsMap = {};
     for (const f of cachedOpenFiles) {
-      if (f.path && f.content !== undefined) contentsMap[f.path] = f.content;
+      if (f.path && f.content !== undefined) {
+        contentsMap[f.path] = f.content;
+        contentsMap[f.path.toLowerCase()] = f.content;
+      }
     }
     fileContentsRef.current = contentsMap;
     activeFileRef.current = cachedActive;
@@ -154,6 +158,7 @@ export function WorkspacePage() {
       for (const f of initialWorkspace.openFiles) {
         if (f.path && f.content !== undefined) {
           map[f.path] = f.content;
+          map[f.path.toLowerCase()] = f.content;
         }
       }
     }
@@ -172,33 +177,43 @@ export function WorkspacePage() {
   const projectRef = useRef(project);
   projectRef.current = project;
 
-  const activeContent = useMemo(
-    () => fileContentsRef.current[activeFile] ?? openFiles.find((file) => file.path === activeFile)?.content ?? '',
-    [activeFile, openFiles]
-  );
+  const activeContent = useMemo(() => {
+    if (!activeFile) return '';
+    const cached = fileContentsRef.current[activeFile] ?? fileContentsRef.current[activeFile.toLowerCase()];
+    if (cached !== undefined) return cached;
+    const lower = activeFile.toLowerCase();
+    const inOpen = openFiles.find((file) => file.path && file.path.toLowerCase() === lower);
+    return inOpen?.content ?? '';
+  }, [activeFile, openFiles]);
 
   const loadWorkspace = async (targetId = projectId) => {
     if (!targetId) return;
 
     try {
-      // 1. Kick off active file read immediately in parallel with workspace metadata & tree
-      const curActive = activeFileRef.current;
-      const activeFilePromise = curActive
-        ? readFileRequest(targetId, curActive).catch(() => null)
-        : Promise.resolve(null);
-
-      const [nextProject, nextTree, history, activeFileData] = await Promise.all([
+      // 1. Fetch project metadata, full bundled code files, and execution history in parallel
+      const [nextProject, bundle, history] = await Promise.all([
         getProjectRequest(targetId),
-        treeRequest(targetId),
-        executionHistoryRequest(targetId).catch(() => []),
-        activeFilePromise
+        bundleRequest(targetId).catch(async () => {
+          const tree = await treeRequest(targetId).catch(() => []);
+          return { tree, files: [] };
+        }),
+        executionHistoryRequest(targetId).catch(() => [])
       ]);
 
       if (targetId !== projectId) return;
 
-      let treeFiles = nextTree || [];
+      let treeFiles = bundle.tree || [];
+      const preloadedFiles = bundle.files || [];
 
-      // 2. Auto-create starter file if project has no files
+      // 2. Pre-populate memory cache with EVERY single code file immediately!
+      for (const f of preloadedFiles) {
+        if (f.path && typeof f.content === 'string') {
+          fileContentsRef.current[f.path] = f.content;
+          fileContentsRef.current[f.path.toLowerCase()] = f.content;
+        }
+      }
+
+      // 3. Auto-create starter file if project has no files
       if (treeFiles.length === 0 && nextProject) {
         const defaultEntryMap = {
           python: 'main.py',
@@ -220,35 +235,44 @@ export function WorkspacePage() {
         try {
           await saveFileRequest(targetId, initialFile, initialContent);
           treeFiles = await treeRequest(targetId);
+          fileContentsRef.current[initialFile] = initialContent;
+          fileContentsRef.current[initialFile.toLowerCase()] = initialContent;
         } catch (err) {
           console.warn('Initial starter file setup:', err);
         }
       }
 
-      // 3. Ensure the active entry file and its code are COMPLETELY loaded before completing loading screen!
-      let resolvedFile = activeFileData;
-      if (!resolvedFile || resolvedFile.content === undefined) {
-        const preferred = curActive || (treeFiles.length > 0 ? guessEntryFile(treeFiles, nextProject?.language ?? 'python') : null);
-        if (preferred) {
-          try {
-            resolvedFile = await readFileRequest(targetId, preferred);
-          } catch (e) {
-            console.warn('Pre-load preferred file error:', e);
+      // 4. Resolve the active entry file
+      const preferred = activeFileRef.current || activeFile || (treeFiles.length > 0 ? guessEntryFile(treeFiles, nextProject?.language ?? 'python') : null);
+
+      if (preferred && fileContentsRef.current[preferred] === undefined && fileContentsRef.current[preferred.toLowerCase()] === undefined) {
+        try {
+          const fetched = await readFileRequest(targetId, preferred);
+          if (fetched && typeof fetched.content === 'string') {
+            fileContentsRef.current[fetched.path] = fetched.content;
+            fileContentsRef.current[fetched.path.toLowerCase()] = fetched.content;
           }
-        }
+        } catch {}
       }
 
-      if (resolvedFile && resolvedFile.content !== undefined) {
-        fileContentsRef.current[resolvedFile.path] = resolvedFile.content;
-        setOpenFiles([{ path: resolvedFile.path, content: resolvedFile.content, dirty: false }]);
-        setActiveFile(resolvedFile.path);
+      // 5. Populate and keep all previously opened tabs with their full preloaded code
+      setOpenFiles((current) => {
+        let baseFiles = current.length > 0 ? current : (preferred ? [{ path: preferred, content: fileContentsRef.current[preferred] ?? '', dirty: false }] : []);
+        return baseFiles.map((f) => {
+          const content = fileContentsRef.current[f.path] ?? fileContentsRef.current[f.path.toLowerCase()] ?? f.content ?? '';
+          return { ...f, content, dirty: Boolean(f.dirty) };
+        });
+      });
+
+      if (preferred) {
+        setActiveFile(preferred);
       }
 
       setProject(nextProject);
       setTree(treeFiles);
       setLatestExecution(history[0] ?? null);
     } finally {
-      // 4. Everything (metadata, files, tree, active code) is fully loaded!
+      // 6. Complete loading screen only after ALL files and code are 100% in memory!
       setIsWorkspaceReady(true);
     }
   };
@@ -344,46 +368,51 @@ export function WorkspacePage() {
 
   const openFile = async (filePath) => {
     if (!projectId || !filePath) return;
+    const clean = filePath.trim().replace(/^['"]|['"]$/g, '').replace(/^\.\//, '').replace(/^\/+/, '');
+    const lower = clean.toLowerCase();
+
+    // 1. Instant check in preloaded memory cache (0ms switch, zero latency)
+    const cachedContent = fileContentsRef.current[clean] ?? fileContentsRef.current[lower];
+
     const existing = openFilesRef.current.find(
-      (file) => file.path.toLowerCase() === filePath.toLowerCase()
+      (file) => file.path.toLowerCase() === lower
     );
+
     if (existing) {
       setActiveFile(existing.path);
-      if (!fileContentsRef.current[existing.path]) {
-        try {
-          const file = await readFileRequest(projectId, existing.path);
-          if (file && file.content !== undefined) {
-            fileContentsRef.current[file.path] = file.content;
-            setOpenFiles((current) =>
-              current.map((f) => (f.path.toLowerCase() === file.path.toLowerCase() ? { ...f, path: file.path, content: file.content } : f))
-            );
-          }
-        } catch (err) {
-          console.warn('Failed to fetch existing file content:', err);
-        }
+      if (cachedContent !== undefined && existing.content !== cachedContent) {
+        setOpenFiles((current) =>
+          current.map((f) => (f.path.toLowerCase() === lower ? { ...f, content: cachedContent } : f))
+        );
       }
       return;
     }
 
-    // 1. If already cached in memory, switch tab in 0 milliseconds!
-    if (fileContentsRef.current[filePath] !== undefined) {
-      const content = fileContentsRef.current[filePath];
-      setOpenFiles((current) => [...current, { path: filePath, content, dirty: false }]);
-      setActiveFile(filePath);
+    if (cachedContent !== undefined) {
+      setOpenFiles((current) => [...current, { path: clean, content: cachedContent, dirty: false }]);
+      setActiveFile(clean);
       return;
     }
 
-    // 2. Optimistically open tab immediately so the UI responds in 0ms!
-    setOpenFiles((current) => [...current, { path: filePath, content: '', dirty: false }]);
-    setActiveFile(filePath);
+    // 2. Binary archive protection: avoid corrupting or displaying raw binary text for archives
+    if (lower.endsWith('.zip') || lower.endsWith('.tar.gz') || lower.endsWith('.tar') || lower.endsWith('.rar')) {
+      const notice = `// Binary archive file (${clean})\n// Archives cannot be edited directly in the code editor.`;
+      fileContentsRef.current[clean] = notice;
+      fileContentsRef.current[lower] = notice;
+      setOpenFiles((current) => [...current, { path: clean, content: notice, dirty: false }]);
+      setActiveFile(clean);
+      return;
+    }
 
-    // 3. Fetch content in background and populate
+    // 3. Fallback: fetch from server if newly created or not in initial bundle
     try {
-      const file = await readFileRequest(projectId, filePath);
-      fileContentsRef.current[file.path] = file.content;
-      setOpenFiles((current) =>
-        current.map((f) => (f.path.toLowerCase() === file.path.toLowerCase() ? { ...f, path: file.path, content: file.content } : f))
-      );
+      const file = await readFileRequest(projectId, clean);
+      if (file && typeof file.content === 'string') {
+        fileContentsRef.current[file.path] = file.content;
+        fileContentsRef.current[file.path.toLowerCase()] = file.content;
+        setOpenFiles((current) => [...current, { path: file.path, content: file.content, dirty: false }]);
+        setActiveFile(file.path);
+      }
     } catch (err) {
       console.warn('Failed to read file:', err);
     }
