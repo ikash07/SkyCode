@@ -2,6 +2,20 @@ import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 're
 import { runProjectRequest } from '../../api/projects';
 import { detectLanguageFromPath } from '../../utils/language';
 
+function getWsUrl() {
+  const token = localStorage.getItem('skycode_token') || '';
+  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+  const envBase = import.meta.env.VITE_API_BASE_URL;
+  if (envBase) {
+    const wsBase = envBase.replace(/^http/, 'ws').replace(/\/api\/?$/, '');
+    return `${wsBase}/ws/terminal${tokenParam}`;
+  }
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return `ws://localhost:4000/ws/terminal${tokenParam}`;
+  }
+  return `wss://skycode-t3ry.onrender.com/ws/terminal${tokenParam}`;
+}
+
 export const TerminalPanel = forwardRef(function TerminalPanel(
   {
     stdout,
@@ -24,6 +38,10 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const socketRef = useRef(null);
+  const pendingPayloadRef = useRef(null);
+  const hasReceivedMessageRef = useRef(false);
+  const fallbackTimerRef = useRef(null);
+  const currentStreamRef = useRef({ stdout: '', stderr: '' });
 
   const setRunningState = (val) => {
     setIsRunning(val);
@@ -42,9 +60,133 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
 
   const handleClear = () => {
     setHistory([]);
+    currentStreamRef.current = { stdout: '', stderr: '' };
     if (onStdinChange) onStdinChange('');
     if (onLiveStreamChange) {
       onLiveStreamChange({ stdout: '', stderr: '' });
+    }
+  };
+
+  const executeHttpFallback = async (fileToRun, effectiveLanguage, currentStdin) => {
+    appendChunk('\n[Direct runner fallback initiated...]\n', 'info');
+    try {
+      const resp = await runProjectRequest(projectId, fileToRun, effectiveLanguage, currentStdin);
+      if (resp.result?.stdout) appendChunk(resp.result.stdout, 'stdout');
+      if (resp.result?.stderr) appendChunk(resp.result.stderr, 'stderr');
+      const sec = ((resp.execution?.durationMs || 0) / 1000).toFixed(2);
+      appendChunk(`\n[Done] exited with code=${resp.execution?.exitCode ?? 0} in ${sec}s\n`, 'info');
+    } catch (err) {
+      appendChunk(`\nExecution error: ${err.message}\n`, 'stderr');
+    } finally {
+      setRunningState(false);
+    }
+  };
+
+  const setupWebSocket = (initialPayload = null) => {
+    if (initialPayload) {
+      pendingPayloadRef.current = initialPayload;
+    }
+
+    if (socketRef.current) {
+      if (socketRef.current.readyState === WebSocket.OPEN) {
+        if (pendingPayloadRef.current) {
+          const payload = pendingPayloadRef.current;
+          pendingPayloadRef.current = null;
+          socketRef.current.send(JSON.stringify(payload));
+        }
+        return socketRef.current;
+      }
+      if (socketRef.current.readyState === WebSocket.CONNECTING) {
+        return socketRef.current;
+      }
+      try { socketRef.current.close(); } catch {}
+      socketRef.current = null;
+    }
+
+    try {
+      const wsUrl = getWsUrl();
+      const ws = new WebSocket(wsUrl);
+      socketRef.current = ws;
+
+      ws.onopen = () => {
+        if (pendingPayloadRef.current && socketRef.current === ws) {
+          const payload = pendingPayloadRef.current;
+          pendingPayloadRef.current = null;
+          ws.send(JSON.stringify(payload));
+        }
+      };
+
+      ws.onmessage = (event) => {
+        hasReceivedMessageRef.current = true;
+        if (fallbackTimerRef.current) {
+          clearTimeout(fallbackTimerRef.current);
+          fallbackTimerRef.current = null;
+        }
+
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'started') {
+            if (msg.command) {
+              setHistory((prev) => {
+                const last = prev[prev.length - 1];
+                if (last && last.type === 'command') {
+                  return [...prev.slice(0, -1), { type: 'command', content: `$ ${msg.command}` }];
+                }
+                return [...prev, { type: 'command', content: `$ ${msg.command}` }];
+              });
+            }
+          } else if (msg.type === 'stdout') {
+            appendChunk(msg.data, 'stdout');
+            currentStreamRef.current.stdout += msg.data;
+            if (onLiveStreamChange) onLiveStreamChange({ ...currentStreamRef.current });
+          } else if (msg.type === 'stderr') {
+            appendChunk(msg.data, 'stderr');
+            currentStreamRef.current.stderr += msg.data;
+            if (onLiveStreamChange) onLiveStreamChange({ ...currentStreamRef.current });
+          } else if (msg.type === 'exit') {
+            setRunningState(false);
+            const seconds = ((msg.durationMs || 0) / 1000).toFixed(2);
+            setHistory((prev) => [
+              ...prev,
+              { type: 'info', content: `[Done] exited with code=${msg.exitCode ?? 0} in ${seconds}s` },
+            ]);
+          } else if (msg.type === 'error') {
+            appendChunk(`\nError: ${msg.message}\n`, 'stderr');
+            currentStreamRef.current.stderr += `\nError: ${msg.message}\n`;
+            if (onLiveStreamChange) onLiveStreamChange({ ...currentStreamRef.current });
+            setRunningState(false);
+          }
+        } catch (e) {
+          console.error('WS parse error:', e);
+        }
+      };
+
+      ws.onerror = (err) => {
+        console.warn('WS terminal error:', err);
+        if (fallbackTimerRef.current) {
+          clearTimeout(fallbackTimerRef.current);
+          fallbackTimerRef.current = null;
+        }
+        if (isRunning && !hasReceivedMessageRef.current) {
+          setRunningState(false);
+        }
+      };
+
+      ws.onclose = () => {
+        if (fallbackTimerRef.current) {
+          clearTimeout(fallbackTimerRef.current);
+          fallbackTimerRef.current = null;
+        }
+        if (socketRef.current === ws) {
+          socketRef.current = null;
+        }
+        setRunningState(false);
+      };
+
+      return ws;
+    } catch (e) {
+      console.warn('WS create error:', e);
+      return null;
     }
   };
 
@@ -61,8 +203,7 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       return;
     }
 
-    let currentStdout = '';
-    let currentStderr = '';
+    currentStreamRef.current = { stdout: '', stderr: '' };
     if (onLiveStreamChange) {
       onLiveStreamChange({ stdout: '', stderr: '' });
     }
@@ -89,107 +230,21 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
       token
     };
 
-    // FAST-PATH: If WebSocket is already warm and open, send IMMEDIATELY in 0.001ms!
-    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify(startPayload));
-      return;
+    hasReceivedMessageRef.current = false;
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
     }
 
-    let wsUrl = 'wss://skycode-t3ry.onrender.com/ws/terminal';
-    let hasReceivedMessage = false;
+    // Fallback safety: if WebSocket does not respond within 5s, run via HTTP runner
+    fallbackTimerRef.current = setTimeout(() => {
+      if (!hasReceivedMessageRef.current) {
+        console.warn('WS timed out waiting for execution response. Triggering fallback.');
+        executeHttpFallback(fileToRun, effectiveLanguage, stdin);
+      }
+    }, 5000);
 
-    try {
-      const ws = new WebSocket(wsUrl);
-      socketRef.current = ws;
-
-      const connectionTimer = setTimeout(async () => {
-        if (!hasReceivedMessage && ws.readyState !== WebSocket.CLOSED) {
-          try { ws.close(); } catch {}
-          appendChunk('\n[Terminal connected slowly. Executing via fast direct runner...]\n', 'info');
-          try {
-            const resp = await runProjectRequest(projectId, fileToRun, effectiveLanguage, stdin);
-            if (resp.result?.stdout) appendChunk(resp.result.stdout, 'stdout');
-            if (resp.result?.stderr) appendChunk(resp.result.stderr, 'stderr');
-            const sec = ((resp.execution?.durationMs || 0) / 1000).toFixed(2);
-            appendChunk(`\n[Done] exited with code=${resp.execution?.exitCode ?? 0} in ${sec}s\n`, 'info');
-          } catch (err) {
-            appendChunk(`\nExecution error: ${err.message}\n`, 'stderr');
-          } finally {
-            setRunningState(false);
-          }
-        }
-      }, 6000);
-
-      ws.onopen = () => {
-        ws.send(JSON.stringify(startPayload));
-      };
-
-      ws.onmessage = (event) => {
-        hasReceivedMessage = true;
-        clearTimeout(connectionTimer);
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'started') {
-            if (msg.command && msg.command !== defaultCmd) {
-              setHistory((prev) => [...prev, { type: 'command', content: `$ ${msg.command}` }]);
-            }
-          } else if (msg.type === 'stdout') {
-            appendChunk(msg.data, 'stdout');
-            currentStdout += msg.data;
-            if (onLiveStreamChange) {
-              onLiveStreamChange({ stdout: currentStdout, stderr: currentStderr });
-            }
-          } else if (msg.type === 'stderr') {
-            appendChunk(msg.data, 'stderr');
-            currentStderr += msg.data;
-            if (onLiveStreamChange) {
-              onLiveStreamChange({ stdout: currentStdout, stderr: currentStderr });
-            }
-          } else if (msg.type === 'exit') {
-            setRunningState(false);
-            const seconds = (msg.durationMs / 1000).toFixed(2);
-            setHistory((prev) => [
-              ...prev,
-              { type: 'info', content: `[Done] exited with code=${msg.exitCode} in ${seconds}s` },
-            ]);
-            // Keep WebSocket open and warm for instant subsequent runs!
-          } else if (msg.type === 'error') {
-            appendChunk(`\nError: ${msg.message}\n`, 'stderr');
-            currentStderr += `\nError: ${msg.message}\n`;
-            if (onLiveStreamChange) {
-              onLiveStreamChange({ stdout: currentStdout, stderr: currentStderr });
-            }
-            setRunningState(false);
-          }
-        } catch {
-          // Ignore
-        }
-      };
-
-      ws.onerror = async () => {
-        clearTimeout(connectionTimer);
-        setRunningState(false);
-        appendChunk('\n[Interactive terminal disconnected. Running via standard runner...]\n', 'info');
-        try {
-          const resp = await runProjectRequest(projectId, fileToRun, effectiveLanguage, stdin);
-          if (resp.result?.stdout) appendChunk(resp.result.stdout, 'stdout');
-          if (resp.result?.stderr) appendChunk(resp.result.stderr, 'stderr');
-          const sec = ((resp.execution?.durationMs || 0) / 1000).toFixed(2);
-          appendChunk(`\n[Done] exited with code=${resp.execution?.exitCode ?? 0} in ${sec}s\n`, 'info');
-        } catch (err) {
-          appendChunk(`\nExecution error: ${err.message}\n`, 'stderr');
-        }
-      };
-
-      ws.onclose = () => {
-        clearTimeout(connectionTimer);
-        setRunningState(false);
-        socketRef.current = null;
-      };
-    } catch (e) {
-      setRunningState(false);
-      appendChunk(`\nConnection error: ${e.message}\n`, 'stderr');
-    }
+    // Send payload via active or new WebSocket with full message listener coverage!
+    setupWebSocket(startPayload);
   };
 
   const stopExecution = () => {
@@ -205,19 +260,18 @@ export const TerminalPanel = forwardRef(function TerminalPanel(
     clearTerminal: handleClear
   }));
 
-  // Pre-warm WebSocket connection so the first click on Run starts in few milliseconds (0ms network setup!)
+  // Pre-warm WebSocket connection on mount so Run starts instantly
   useEffect(() => {
     if (!projectId) return;
-    let ws = null;
-    try {
-      ws = new WebSocket('wss://skycode-t3ry.onrender.com/ws/terminal');
-      socketRef.current = ws;
-      ws.onclose = () => {
-        if (socketRef.current === ws) socketRef.current = null;
-      };
-    } catch {}
+    setupWebSocket();
     return () => {
-      try { ws?.close(); } catch {}
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+      }
+      try {
+        socketRef.current?.close();
+      } catch {}
+      socketRef.current = null;
     };
   }, [projectId]);
 

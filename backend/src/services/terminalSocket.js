@@ -114,7 +114,7 @@ export function setupTerminalSocket(server) {
           const resolvedEntry = message.entryFile.replace(/^\/+/, '').replace(/\\+/g, '/');
 
           // Direct instant write of edited code: eliminates pre-execution HTTP roundtrip latency completely!
-          if (typeof message.content === 'string') {
+          if (typeof message.content === 'string' && message.content.length > 0) {
             const targetPath = path.join(project.rootPath, resolvedEntry);
             await fs.mkdir(path.dirname(targetPath), { recursive: true });
             await fs.writeFile(targetPath, message.content, 'utf8');

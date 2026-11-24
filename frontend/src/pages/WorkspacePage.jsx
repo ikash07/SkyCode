@@ -433,23 +433,25 @@ export function WorkspacePage() {
     setIsTerminalVisible(true);
     setBottomTab('terminal');
 
-    // 4. Retrieve latest content
+    // 4. Retrieve latest content if loaded/dirty
+    const matchedDoc = openFilesRef.current.find((f) => cleanPath(f.path).toLowerCase() === targetFile.toLowerCase());
     const contentToSave =
       fileContentsRef.current[targetFile] ??
       fileContentsRef.current[canonicalTarget] ??
-      openFilesRef.current.find((f) => cleanPath(f.path).toLowerCase() === targetFile.toLowerCase())?.content ??
-      '';
+      matchedDoc?.content;
 
     // 5. Fire background file saves non-blockingly so execution is instant (0ms delay)
     try {
-      saveFileRequest(projectId, canonicalTarget, contentToSave).catch(() => {});
-      if (targetFile !== canonicalTarget) {
-        saveFileRequest(projectId, targetFile, contentToSave).catch(() => {});
+      if (typeof contentToSave === 'string' && contentToSave.length > 0) {
+        saveFileRequest(projectId, canonicalTarget, contentToSave).catch(() => {});
+        if (targetFile !== canonicalTarget) {
+          saveFileRequest(projectId, targetFile, contentToSave).catch(() => {});
+        }
       }
       for (const doc of openFilesRef.current) {
         if (doc.dirty && cleanPath(doc.path) !== canonicalTarget && cleanPath(doc.path) !== targetFile) {
           const docContent = fileContentsRef.current[doc.path] ?? doc.content;
-          if (docContent !== undefined) {
+          if (typeof docContent === 'string' && docContent.length > 0) {
             saveFileRequest(projectId, doc.path, docContent).catch(() => {});
           }
         }
@@ -486,7 +488,11 @@ export function WorkspacePage() {
 
     // 7. Run immediately in interactive terminal with content override (0ms latency!)
     if (terminalRef.current && terminalRef.current.startInteractiveExecution) {
-      terminalRef.current.startInteractiveExecution(canonicalTarget, effectiveLanguage, contentToSave);
+      terminalRef.current.startInteractiveExecution(
+        canonicalTarget,
+        effectiveLanguage,
+        typeof contentToSave === 'string' && contentToSave.length > 0 ? contentToSave : undefined
+      );
       return;
     }
 
