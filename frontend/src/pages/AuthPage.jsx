@@ -66,8 +66,6 @@ export function AuthPage() {
           backgroundImage: 'radial-gradient(#000 1.5px, transparent 1.5px)',
           backgroundSize: '22px 22px',
           opacity: 0.06,
-          willChange: 'opacity',
-          transform: 'translateZ(0)',
         }}
       />
 
@@ -94,13 +92,10 @@ export function AuthPage() {
           <div className="flex items-center shrink-0">
             {Array.from({ length: 18 }).map((_, i) => (
               <span key={`t1-${i}`} className="inline-flex items-center gap-2 mx-4 sm:mx-5 shrink-0">
-                <img
-                  src="/logo-icon.png"
-                  alt=""
-                  className="w-3.5 h-3.5 object-cover rounded-xs inline-block shrink-0"
-                  loading="eager"
-                  decoding="async"
-                />
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0" aria-hidden="true">
+                  <rect width="14" height="14" rx="2" fill="#280736" stroke="#000" strokeWidth="1.5" />
+                  <path d="M4.5 4.5L2.5 7L4.5 9.5M9.5 4.5L11.5 7L9.5 9.5M8 4L6 10" stroke="#FFD93D" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
                 SKYCODE IDE
               </span>
             ))}
@@ -109,13 +104,10 @@ export function AuthPage() {
           <div className="flex items-center shrink-0" aria-hidden="true">
             {Array.from({ length: 18 }).map((_, i) => (
               <span key={`t2-${i}`} className="inline-flex items-center gap-2 mx-4 sm:mx-5 shrink-0">
-                <img
-                  src="/logo-icon.png"
-                  alt=""
-                  className="w-3.5 h-3.5 object-cover rounded-xs inline-block shrink-0"
-                  loading="eager"
-                  decoding="async"
-                />
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0" aria-hidden="true">
+                  <rect width="14" height="14" rx="2" fill="#280736" stroke="#000" strokeWidth="1.5" />
+                  <path d="M4.5 4.5L2.5 7L4.5 9.5M9.5 4.5L11.5 7L9.5 9.5M8 4L6 10" stroke="#FFD93D" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
                 SKYCODE IDE
               </span>
             ))}

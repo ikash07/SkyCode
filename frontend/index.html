@@ -14,41 +14,34 @@
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="manifest" href="/site.webmanifest" />
 
-    <!-- Instant Preload for 0ms Splash Logo -->
-    <link rel="preload" as="image" href="/logo-icon.png" fetchpriority="high" />
-
     <!-- Open Graph / Meta -->
     <meta property="og:title" content="SkyCode — Online IDE" />
     <meta property="og:description" content="A powerful online IDE with Docker-based code execution. Code, run and deploy from your browser." />
     <meta property="og:image" content="/logo-card.png" />
 
-    <!-- Preconnect to Render backend for 0ms initial handshake -->
+    <!-- Preconnect to Render backend -->
     <link rel="preconnect" href="https://skycode-t3ry.onrender.com" crossorigin />
     <link rel="dns-prefetch" href="https://skycode-t3ry.onrender.com" />
 
-    <!-- Preconnect to Monaco CDN for 0ms editor bootstrap -->
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
-
-    <!-- Space Grotesk + Space Mono — preloaded for Neo-Brutalism UI -->
+    <!-- Space Grotesk + Space Mono — non-blocking display=swap for instantaneous 0ms rendering -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;900&family=Space+Mono:wght@400;700&display=block"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;900&family=Space+Mono:wght@400;700&display=swap"
       rel="stylesheet"
     />
   </head>
   <body style="background: #FFFDF5; margin: 0; padding: 0; min-height: 100vh;">
-    <!-- 0ms Hardware-Accelerated Splash Screen (GPU composited, ultra-smooth on Firefox & all browsers) -->
-    <div id="initial-splash" style="position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:#FFFDF5;z-index:99999;will-change:opacity;transform:translateZ(0);transition:opacity 0.35s cubic-bezier(0.16,1,0.3,1);">
-      <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:28px 32px;background:#FFD93D;border:3px solid #000;box-shadow:8px 8px 0px 0px #000;width:100%;max-width:320px;text-align:center;box-sizing:border-box;will-change:transform;transform:translateZ(0);">
+    <!-- 0ms Hardware-Accelerated Splash Screen (Native Compositor Thread, Silky Smooth on Firefox) -->
+    <div id="initial-splash" style="position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:#FFFDF5;z-index:99999;transition:opacity 0.28s cubic-bezier(0.2,0.8,0.2,1);contain:strict;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:28px 32px;background:#FFD93D;border:3px solid #000;box-shadow:8px 8px 0px 0px #000;width:100%;max-width:320px;text-align:center;box-sizing:border-box;">
         <div style="width:62px;height:62px;background:#280736;border:3px solid #000;box-shadow:4px 4px 0px 0px #000;display:flex;align-items:center;justify-content:center;overflow:hidden;">
           <img src="data:image/webp;base64,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" alt="SkyCode" width="62" height="62" decoding="sync" loading="eager" fetchpriority="high" style="width:100%;height:100%;object-fit:cover;display:block;" />
         </div>
         <div style="font-family:'Space Grotesk',sans-serif,system-ui;font-size:24px;font-weight:900;text-transform:uppercase;letter-spacing:-0.03em;color:#000;">SkyCode</div>
         <div style="font-family:'Space Grotesk',sans-serif,system-ui;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:rgba(0,0,0,0.75);">LOADING LOGIN PAGE…</div>
         <div style="width:100%;height:10px;background:rgba(0,0,0,0.15);border:2px solid #000;margin-top:8px;overflow:hidden;box-sizing:border-box;">
-          <div style="height:100%;background:#000;width:100%;transform-origin:left;transform:scaleX(0);animation:initial-load 0.72s cubic-bezier(0.16,1,0.3,1) forwards;will-change:transform;"></div>
+          <div style="height:100%;background:#000;width:100%;transform-origin:left center;transform:scaleX(0);animation:initial-load 0.65s cubic-bezier(0.2,0.8,0.2,1) forwards;"></div>
         </div>
       </div>
     </div>

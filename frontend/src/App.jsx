@@ -10,21 +10,21 @@ export default function App() {
   const { user } = useAuth();
 
   useEffect(() => {
-    // Seamlessly transition out the hardware-accelerated initial splash screen
+    // Seamlessly transition out the splash screen once mounted and ready
     const splash = document.getElementById('initial-splash');
     if (!splash) return;
 
-    // Allow the GPU progress animation to complete smoothly (~700ms)
+    // Smoothly fade out the splash screen without long freeze
     const timer = setTimeout(() => {
       splash.style.opacity = '0';
       splash.style.pointerEvents = 'none';
 
       const removeTimer = setTimeout(() => {
         splash.remove();
-      }, 350);
+      }, 300);
 
       return () => clearTimeout(removeTimer);
-    }, 680);
+    }, 450);
 
     return () => clearTimeout(timer);
   }, []);
