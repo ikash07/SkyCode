@@ -72,7 +72,7 @@ export function AuthPage() {
       />
 
       {/* ── Decorative floating stars (hidden on small devices for clarity) ── */}
-      <FloatingStar className="hidden md:block" style={{ top: '8%',  left: '6%' }}  size={28} rotate={15} />
+      <FloatingStar className="hidden md:block" style={{ top: '8%', left: '6%' }} size={28} rotate={15} />
       <FloatingStar className="hidden md:block" style={{ top: '12%', right: '8%' }} size={20} rotate={-8} />
       <FloatingStar className="hidden md:block" style={{ bottom: '10%', left: '10%' }} size={22} rotate={30} />
       <FloatingStar className="hidden md:block" style={{ bottom: '14%', right: '6%' }} size={32} rotate={-20} />
