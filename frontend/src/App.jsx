@@ -14,18 +14,37 @@ export default function App() {
     const splash = document.getElementById('initial-splash');
     if (!splash) return;
 
-    // Smoothly fade out the splash screen without long freeze
-    const timer = setTimeout(() => {
+    const bar = document.getElementById('splash-progress-bar');
+
+    const fadeOut = () => {
       splash.style.opacity = '0';
       splash.style.pointerEvents = 'none';
 
       const removeTimer = setTimeout(() => {
         splash.remove();
-      }, 300);
+      }, 450);
 
       return () => clearTimeout(removeTimer);
-    }, 450);
+    };
 
+    const animations = bar?.getAnimations?.() || [];
+    const isFinished = animations.length > 0 && animations.every((a) => a.playState === 'finished');
+
+    if (isFinished) {
+      fadeOut();
+      return;
+    }
+
+    if (bar) {
+      bar.addEventListener('animationend', fadeOut, { once: true });
+      const safetyFallback = setTimeout(fadeOut, 750);
+      return () => {
+        clearTimeout(safetyFallback);
+        bar.removeEventListener('animationend', fadeOut);
+      };
+    }
+
+    const timer = setTimeout(fadeOut, 600);
     return () => clearTimeout(timer);
   }, []);
 
