@@ -396,12 +396,15 @@ body {
 }
 
 @keyframes nb-progress-load {
-  0%   { width: 0%; }
-  100% { width: 100%; }
+  0%   { transform: scaleX(0); }
+  100% { transform: scaleX(1); }
 }
 .nb-progress-load {
-  animation: nb-progress-load 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: width;
+  width: 100%;
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: nb-progress-load 0.72s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform;
 }
 
 /* Clean smooth fade-in for loading cards without popup jump */

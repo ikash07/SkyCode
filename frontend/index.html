@@ -39,28 +39,27 @@
     />
   </head>
   <body style="background: #FFFDF5; margin: 0; padding: 0; min-height: 100vh;">
-    <div id="root">
-      <!-- 0ms Instant Pre-JS Splash Screen (Visible before React even downloads) -->
-      <div id="initial-splash" style="position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:#FFFDF5;z-index:9999;">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 32px;background:#FFD93D;border:3px solid #000;box-shadow:8px 8px 0px 0px #000;width:100%;max-width:320px;text-align:center;box-sizing:border-box;">
-          <div style="width:60px;height:60px;background:#280736;border:3px solid #000;box-shadow:4px 4px 0px 0px #000;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-            <img src="/logo-icon.png" alt="SkyCode" width="60" height="60" style="width:100%;height:100%;object-fit:cover;display:block;" />
-          </div>
-          <div style="font-family:'Space Grotesk',sans-serif,system-ui;font-size:24px;font-weight:900;text-transform:uppercase;letter-spacing:-0.03em;color:#000;">SkyCode</div>
-          <div style="font-family:'Space Grotesk',sans-serif,system-ui;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:rgba(0,0,0,0.75);">LOADING LOGIN PAGE…</div>
-          <div style="width:100%;height:10px;background:rgba(0,0,0,0.15);border:2px solid #000;margin-top:8px;overflow:hidden;box-sizing:border-box;">
-            <div style="height:100%;background:#000;width:0%;animation:initial-load 0.58s cubic-bezier(0.16,1,0.3,1) forwards;"></div>
-          </div>
+    <!-- 0ms Hardware-Accelerated Splash Screen (GPU composited, ultra-smooth on Firefox & all browsers) -->
+    <div id="initial-splash" style="position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:#FFFDF5;z-index:99999;will-change:opacity;transform:translateZ(0);transition:opacity 0.35s cubic-bezier(0.16,1,0.3,1);">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:28px 32px;background:#FFD93D;border:3px solid #000;box-shadow:8px 8px 0px 0px #000;width:100%;max-width:320px;text-align:center;box-sizing:border-box;will-change:transform;transform:translateZ(0);">
+        <div style="width:62px;height:62px;background:#280736;border:3px solid #000;box-shadow:4px 4px 0px 0px #000;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+          <img src="/logo-icon.png" alt="SkyCode" width="62" height="62" style="width:100%;height:100%;object-fit:cover;display:block;" />
+        </div>
+        <div style="font-family:'Space Grotesk',sans-serif,system-ui;font-size:24px;font-weight:900;text-transform:uppercase;letter-spacing:-0.03em;color:#000;">SkyCode</div>
+        <div style="font-family:'Space Grotesk',sans-serif,system-ui;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:rgba(0,0,0,0.75);">LOADING LOGIN PAGE…</div>
+        <div style="width:100%;height:10px;background:rgba(0,0,0,0.15);border:2px solid #000;margin-top:8px;overflow:hidden;box-sizing:border-box;">
+          <div style="height:100%;background:#000;width:100%;transform-origin:left;transform:scaleX(0);animation:initial-load 0.72s cubic-bezier(0.16,1,0.3,1) forwards;will-change:transform;"></div>
         </div>
       </div>
-      <style>
-        @keyframes initial-load {
-          0% { width: 0%; }
-          60% { width: 75%; }
-          100% { width: 100%; }
-        }
-      </style>
     </div>
+    <style>
+      @keyframes initial-load {
+        0%   { transform: scaleX(0); }
+        100% { transform: scaleX(1); }
+      }
+    </style>
+
+    <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

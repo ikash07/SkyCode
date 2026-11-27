@@ -66,6 +66,8 @@ export function AuthPage() {
           backgroundImage: 'radial-gradient(#000 1.5px, transparent 1.5px)',
           backgroundSize: '22px 22px',
           opacity: 0.06,
+          willChange: 'opacity',
+          transform: 'translateZ(0)',
         }}
       />
 
